@@ -26,7 +26,6 @@ export default function ReviewCard({ review: r }: { review: PublicReview }) {
   }, [open, r.review_text]);
   const long = overflows || open;
   const href = r.source_link ? safeHref(r.source_link) : null;
-  const label = r.source_title || r.source_type;
   return (
     <article className="card review" id={`review-${r.id}`}>
       {r.tags && <div className="tags">{r.tags}</div>}
@@ -39,13 +38,13 @@ export default function ReviewCard({ review: r }: { review: PublicReview }) {
       <div className="meta">
         {r.reviewer_name && <span>{r.reviewer_name}</span>}
         {r.review_date && <time dateTime={r.review_date}>{r.review_date}</time>}
-        <span>{r.source_type}</span>
+        {!href && <span>{r.source_type}</span>}
         <span>{r.hospital_name}</span>
       </div>
       <div className="row">
         {href && (
           <a className="btn small" href={href} target="_blank" rel="noopener noreferrer nofollow ugc">
-            {label} ↗
+            {r.source_type} ↗
           </a>
         )}
       </div>

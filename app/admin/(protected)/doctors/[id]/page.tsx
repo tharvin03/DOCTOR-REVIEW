@@ -5,8 +5,8 @@ import Flash from "@/app/components/Flash";
 import { getDb } from "@/lib/db";
 
 export default async function EditDoctor({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ msg?: string; err?: string }> }) {
-  const doctor = await getDb().get<{ id: number; name: string; slug: string; specialty_id: number; short_description: string; hidden: number }>(
-    "SELECT id, name, slug, specialty_id, short_description, hidden FROM doctors WHERE id=?", Number((await params).id) || 0);
+  const doctor = await getDb().get<{ id: number; name: string; slug: string; specialty_id: number; short_description: string; qualifications: string; years_experience: number | null; hidden: number }>(
+    "SELECT id, name, slug, specialty_id, short_description, qualifications, years_experience, hidden FROM doctors WHERE id=?", Number((await params).id) || 0);
   if (!doctor) notFound();
   return (
     <>

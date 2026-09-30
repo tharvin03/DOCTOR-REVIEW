@@ -1,5 +1,5 @@
 import type { Db } from "./db";
-import { CITIES, SOURCE_TYPES } from "./constants";
+import { CITIES } from "./constants";
 import {
   displayDoctorName,
   isHttpUrl,
@@ -31,9 +31,16 @@ export function findHospital(db: Db, name: string, city: string) {
   );
 }
 
+/** Years of experience is optional: anything that is not a sensible whole number becomes "not set". */
+export function cleanYears(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Math.trunc(Number(v));
+  return Number.isFinite(n) && n >= 0 && n <= 80 ? n : null;
+}
+
 export async function createDoctor(
   db: Db,
-  input: { name: string; specialtyId: number; description?: string; hidden?: boolean },
+  input: { name: string; specialtyId: number; description?: string; qualifications?: string; yearsExperience?: number | null; hidden?: boolean },
 ): Promise<number> {
   const clean = input.name.trim();
   const norm = normalizeDoctorName(clean);
@@ -42,8 +49,9 @@ export async function createDoctor(
   const name = displayDoctorName(clean);
   const slug = await uniqueSlug(db, "doctors", slugify(name));
   return db.insert(
-    "INSERT INTO doctors (name, name_norm, slug, specialty_id, short_description, hidden) VALUES (?,?,?,?,?,?)",
-    name, norm, slug, input.specialtyId, input.description?.trim() ?? "", input.hidden ? 1 : 0,
+    "INSERT INTO doctors (name, name_norm, slug, specialty_id, short_description, qualifications, years_experience, hidden) VALUES (?,?,?,?,?,?,?,?)",
+    name, norm, slug, input.specialtyId, input.description?.trim() ?? "", input.qualifications?.trim() ?? "",
+    cleanYears(input.yearsExperience), input.hidden ? 1 : 0,
   );
 }
 
@@ -115,49 +123,79 @@ export type ReviewInput = {
   date?: string;
   sourceType: string;
   sourceLink?: string;
-  sourceTitle?: string;
   tags?: string;
   hidden?: boolean;
 };
 
-/** Returns an error message, or null when the review is valid. */
-export function validateReview(r: Omit<ReviewInput, "doctorId" | "hospitalId">): string | null {
-  if (!r.text?.trim()) return "Review text is required";
-  if (!(SOURCE_TYPES as readonly string[]).includes(r.sourceType))
-    return `Source type must be one of: ${SOURCE_TYPES.join(", ")}`;
+export type SourceTypeRow = { id: number; name: string; requires_link: number };
+
+export function listSourceTypes(db: Db) {
+  return db.all<SourceTypeRow>("SELECT id, name, requires_link FROM source_types ORDER BY name");
+}
+
+export async function createSourceType(db: Db, name: string, requiresLink: boolean): Promise<number> {
+  const n = name.trim().replace(/\s+/g, " ");
+  if (!n) throw new Error("Name is required");
+  if (await db.get("SELECT 1 AS x FROM source_types WHERE lower(name) = lower(?)", n)) throw new Error(`"${n}" already exists`);
+  return db.insert("INSERT INTO source_types (name, requires_link) VALUES (?,?)", n, requiresLink ? 1 : 0);
+}
+
+/** Renames/updates a source type; reviews keep the name as text, so they are renamed with it. */
+export async function updateSourceType(db: Db, id: number, name: string, requiresLink: boolean) {
+  const n = name.trim().replace(/\s+/g, " ");
+  if (!n) throw new Error("Name is required");
+  await db.tx(async (t) => {
+    const old = await t.get<{ name: string }>("SELECT name FROM source_types WHERE id = ?", id);
+    if (!old) throw new Error("Source type not found");
+    if (await t.get("SELECT 1 AS x FROM source_types WHERE lower(name) = lower(?) AND id != ?", n, id)) throw new Error(`"${n}" already exists`);
+    await t.run("UPDATE source_types SET name = ?, requires_link = ? WHERE id = ?", n, requiresLink ? 1 : 0, id);
+    await t.run("UPDATE reviews SET source_type = ? WHERE source_type = ?", n, old.name);
+  });
+}
+
+export async function deleteSourceType(db: Db, id: number) {
+  const st = await db.get<{ name: string }>("SELECT name FROM source_types WHERE id = ?", id);
+  if (!st) return;
+  const used = (await db.get<{ c: number }>("SELECT COUNT(*) AS c FROM reviews WHERE source_type = ?", st.name))!.c;
+  if (used > 0) throw new Error(`"${st.name}" is used by ${used} review(s). Change those reviews first.`);
+  await db.run("DELETE FROM source_types WHERE id = ?", id);
+}
+
+/**
+ * Validates a review against the managed source-type list.
+ * Throws a readable error, or returns the canonical source type name to store.
+ */
+export async function prepareReview(db: Db, r: Omit<ReviewInput, "doctorId" | "hospitalId">): Promise<string> {
+  if (!r.text?.trim()) throw new Error("Review text is required");
+  const st = await db.get<{ name: string; requires_link: number }>(
+    "SELECT name, requires_link FROM source_types WHERE lower(name) = lower(?)", (r.sourceType ?? "").trim());
+  if (!st) throw new Error(`Unknown source type "${r.sourceType ?? ""}". Add it under Admin > Source types first.`);
   const link = r.sourceLink?.trim() ?? "";
-  if (r.sourceType !== "Patient submission" && !link) return "Source link is required for this source type";
-  if (link && !isHttpUrl(link)) return "Source link must be a valid http(s) URL";
-  if (r.date && !/^\d{4}-\d{2}-\d{2}$/.test(r.date)) return "Review date must be YYYY-MM-DD";
-  if (r.date && Number.isNaN(Date.parse(r.date))) return "Review date is not a valid date";
-  return null;
+  if (st.requires_link && !link) throw new Error(`A source link is required for "${st.name}"`);
+  if (link && !isHttpUrl(link)) throw new Error("Source link must be a valid http(s) URL");
+  if (r.date && !/^\d{4}-\d{2}-\d{2}$/.test(r.date)) throw new Error("Review date must be YYYY-MM-DD");
+  if (r.date && Number.isNaN(Date.parse(r.date))) throw new Error("Review date is not a valid date");
+  return st.name;
 }
 
 export async function insertReview(db: Db, r: ReviewInput): Promise<number> {
-  const err = validateReview(r);
-  if (err) throw new Error(err);
+  const sourceType = await prepareReview(db, r);
   return db.insert(
     `INSERT INTO reviews (doctor_id, hospital_id, review_text, reviewer_name, review_date, source_type,
-       source_link, source_title, tags, hidden) VALUES (?,?,?,?,?,?,?,?,?,?)`,
-    r.doctorId, r.hospitalId, r.text.trim(), r.reviewerName?.trim() ?? "", r.date || null, r.sourceType,
-    r.sourceLink?.trim() ?? "", r.sourceTitle?.trim() || defaultSourceTitle(r.sourceType), r.tags?.trim() ?? "", r.hidden ? 1 : 0,
+       source_link, tags, hidden) VALUES (?,?,?,?,?,?,?,?,?)`,
+    r.doctorId, r.hospitalId, r.text.trim(), r.reviewerName?.trim() ?? "", r.date || null, sourceType,
+    r.sourceLink?.trim() ?? "", r.tags?.trim() ?? "", r.hidden ? 1 : 0,
   );
 }
 
 export async function updateReview(db: Db, id: number, r: ReviewInput) {
-  const err = validateReview(r);
-  if (err) throw new Error(err);
+  const sourceType = await prepareReview(db, r);
   await db.run(
     `UPDATE reviews SET doctor_id=?, hospital_id=?, review_text=?, reviewer_name=?, review_date=?, source_type=?,
-       source_link=?, source_title=?, tags=?, hidden=? WHERE id=?`,
-    r.doctorId, r.hospitalId, r.text.trim(), r.reviewerName?.trim() ?? "", r.date || null, r.sourceType,
-    r.sourceLink?.trim() ?? "", r.sourceTitle?.trim() || defaultSourceTitle(r.sourceType),
-    r.tags?.trim() ?? "", r.hidden ? 1 : 0, id,
+       source_link=?, tags=?, hidden=? WHERE id=?`,
+    r.doctorId, r.hospitalId, r.text.trim(), r.reviewerName?.trim() ?? "", r.date || null, sourceType,
+    r.sourceLink?.trim() ?? "", r.tags?.trim() ?? "", r.hidden ? 1 : 0, id,
   );
-}
-
-export function defaultSourceTitle(sourceType: string): string {
-  return sourceType === "Google review" ? "Google review" : sourceType === "Patient submission" ? "Patient submission" : "View source";
 }
 
 export function normalizeReviewText(t: string): string {

@@ -2,6 +2,7 @@ import Flash from "@/app/components/Flash";
 import ReviewForm from "@/app/components/ReviewForm";
 import { saveReview } from "../../../actions";
 import { getDb } from "@/lib/db";
+import { listSourceTypes } from "@/lib/repo";
 
 export default async function NewReview({ searchParams }: { searchParams: Promise<{ err?: string; submission?: string }> }) {
   const sp = await searchParams;
@@ -16,7 +17,7 @@ export default async function NewReview({ searchParams }: { searchParams: Promis
       <h1>Add review</h1>
       <Flash err={sp.err} />
       {sub && <p className="notice">Prefilled from submission #{sub.id}. Pick the doctor and hospital, then save; the submission will be marked approved.</p>}
-      <ReviewForm action={saveReview} specialties={specialties}
+      <ReviewForm action={saveReview} specialties={specialties} sourceTypes={await listSourceTypes(db)}
         initial={sub ? { review_text: sub.message, source_link: sub.link, source_type: sub.link ? "Other" : "Patient submission", submission_id: sub.id } : {}} />
     </>
   );

@@ -2,10 +2,10 @@ import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import { Pool } from "pg";
 import ExcelJS from "exceljs";
-import { openDb } from "../lib/db";
+import { ensureSchema, openDb } from "../lib/db";
 import { seed } from "../lib/seed-data";
 import { isSimilar, normalizeDoctorName, normalizeHospitalName, slugify } from "../lib/normalize";
-import { createDoctor, createHospital, insertReview, validateReview } from "../lib/repo";
+import { cleanYears, createDoctor, createHospital, createSourceType, deleteSourceType, insertReview, prepareReview, updateSourceType } from "../lib/repo";
 import { buildTemplate, parseWorkbook, runImport, type RawRow } from "../lib/import";
 import * as q from "../lib/queries";
 
@@ -63,12 +63,79 @@ test("doctor/hospital uniqueness", async () => {
   await assert.rejects(db.run("INSERT INTO specialties (name, slug) VALUES ('ORTHOPEDICS','orthopedics-2')"), /duplicate key/);
 });
 
-test("review validation: link required except Patient submission", () => {
+test("review validation: driven by the managed source-type list", async () => {
+  const db = await freshDb(false);
   const base = { text: "x", sourceType: "Google review" };
-  assert.match(validateReview(base)!, /link is required/);
-  assert.equal(validateReview({ ...base, sourceType: "Patient submission" }), null);
-  assert.match(validateReview({ ...base, sourceLink: "javascript:alert(1)" })!, /valid http/);
-  assert.equal(validateReview({ ...base, sourceLink: "https://a.com/x" }), null);
+  await assert.rejects(prepareReview(db, base), /link is required/);
+  assert.equal(await prepareReview(db, { ...base, sourceType: "patient SUBMISSION" }), "Patient submission"); // no link needed, canonical name
+  await assert.rejects(prepareReview(db, { ...base, sourceLink: "javascript:alert(1)" }), /valid http/);
+  assert.equal(await prepareReview(db, { ...base, sourceLink: "https://a.com/x" }), "Google review");
+  await assert.rejects(prepareReview(db, { ...base, sourceType: "TikTok video", sourceLink: "https://t.com/1" }), /Unknown source type/);
+  await createSourceType(db, "TikTok video", true); // admin adds it once, then it works
+  assert.equal(await prepareReview(db, { ...base, sourceType: "tiktok video", sourceLink: "https://t.com/1" }), "TikTok video");
+  await assert.rejects(createSourceType(db, "TIKTOK video", true), /already exists/);
+});
+
+test("source types: rename cascades to reviews, delete blocked while in use", async () => {
+  const db = await freshDb();
+  const gid = (await db.get<{ id: number }>("SELECT id FROM source_types WHERE name = 'Google review'"))!.id;
+  await updateSourceType(db, gid, "Google Maps review", true);
+  assert.equal((await db.get<{ c: number }>("SELECT COUNT(*) AS c FROM reviews WHERE source_type = 'Google Maps review'"))!.c, 1);
+  assert.equal((await db.get<{ c: number }>("SELECT COUNT(*) AS c FROM reviews WHERE source_type = 'Google review'"))!.c, 0);
+  await assert.rejects(deleteSourceType(db, gid), /used by 1 review/);
+  const other = (await db.get<{ id: number }>("SELECT id FROM source_types WHERE name = 'Other'"))!.id;
+  await deleteSourceType(db, other); // unused, fine
+  await assert.rejects(updateSourceType(db, gid, "article", true), /already exists/);
+});
+
+test("doctor profile: optional years are cleaned, empty fields stay empty", async () => {
+  assert.equal(cleanYears(""), null);
+  assert.equal(cleanYears("abc"), null);
+  assert.equal(cleanYears("-3"), null);
+  assert.equal(cleanYears("200"), null);
+  assert.equal(cleanYears("12"), 12);
+  assert.equal(cleanYears("0"), 0);
+  const db = await freshDb();
+  (globalThis as unknown as { __doctorReviewDb: unknown }).__doctorReviewDb = db;
+  const plain = (await q.getDoctorPage("dr-tan-example"))!;
+  assert.equal(plain.qualifications, "");
+  assert.equal(plain.years_experience, null);
+  await db.run("UPDATE doctors SET qualifications = 'MBBS, MS Ortho', years_experience = 15 WHERE slug = 'dr-tan-example'");
+  const full = (await q.getDoctorPage("dr-tan-example"))!;
+  assert.equal(full.qualifications, "MBBS, MS Ortho");
+  assert.equal(full.years_experience, 15);
+});
+
+test("migration: a version-1 database upgrades in place and keeps its reviews", async () => {
+  const schema = "t_" + Math.random().toString(36).slice(2, 10);
+  await admin.query(`CREATE SCHEMA ${schema}`);
+  made.push(schema);
+  const raw = new Pool({ connectionString: URL, max: 2, options: `-c search_path=${schema}` });
+  try {
+    await ensureSchema(raw); // latest shape...
+    // ...then rewind it to how the first release looked
+    await raw.query(`
+      DROP TABLE schema_migrations;
+      ALTER TABLE doctors DROP COLUMN qualifications, DROP COLUMN years_experience;
+      DROP TABLE source_types;
+      ALTER TABLE reviews ADD CONSTRAINT reviews_source_type_check CHECK (source_type IN
+        ('Google review','Article','Forum or social post','Patient submission','Other'));
+      INSERT INTO specialties (name, slug) VALUES ('Orthopedics','orthopedics');
+      INSERT INTO doctors (name, name_norm, slug, specialty_id) VALUES ('Dr Old','old','dr-old',1);
+      INSERT INTO hospitals (name, name_norm, slug, city) VALUES ('H','h','h-kl','KL');
+      INSERT INTO reviews (doctor_id, hospital_id, review_text, source_type, source_link, source_title)
+        VALUES (1, 1, 'old review', 'Other', 'https://x.com/1', 'GOOGLE REIVIE');`);
+    await ensureSchema(raw);
+    await ensureSchema(raw); // idempotent
+    const r = (await raw.query("SELECT source_type FROM reviews")).rows;
+    assert.deepEqual(r, [{ source_type: "Other" }]);
+    assert.ok((await raw.query("SELECT 1 FROM source_types WHERE name = 'Instagram post'")).rowCount);
+    await raw.query("INSERT INTO reviews (doctor_id, hospital_id, review_text, source_type) VALUES (1,1,'new','Instagram post')"); // CHECK gone
+    await raw.query("UPDATE doctors SET qualifications = 'x', years_experience = 3");
+    assert.equal((await raw.query("SELECT max(version) AS v FROM schema_migrations")).rows[0].v, 2);
+  } finally {
+    await raw.end();
+  }
 });
 
 test("import: preview rolls back, commit reuses and reports failures", async () => {
@@ -93,7 +160,8 @@ test("import: preview rolls back, commit reuses and reports failures", async () 
 });
 
 test("template round-trips through the parser", async () => {
-  const rows = await parseWorkbook(await buildTemplate());
+  const db = await freshDb();
+  const rows = await parseWorkbook(await buildTemplate(db));
   assert.equal(rows.length, 1);
   assert.equal(rows[0].doctor_name, "Dr Example Name");
   const wb = new ExcelJS.Workbook();

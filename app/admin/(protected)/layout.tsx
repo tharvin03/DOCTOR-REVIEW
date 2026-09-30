@@ -11,7 +11,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <div className="wrap">
         <nav className="admin-nav">
           {[["/admin", "Dashboard"], ["/admin/doctors", "Doctors"], ["/admin/hospitals", "Hospitals"], ["/admin/reviews", "Reviews"],
-            ["/admin/specialties", "Specialties"], ["/admin/procedures", "Procedures"], ["/admin/import", "Excel import"],
+            ["/admin/specialties", "Specialties"], ["/admin/procedures", "Procedures"], ["/admin/source-types", "Source types"], ["/admin/import", "Excel import"],
             ["/admin/submissions", "Submissions"], ["/admin/removals", "Removal requests"]].map(([h, l]) => <Link key={h} href={h}>{l}</Link>)}
           <form action={logout} style={{ display: "inline" }}><button className="linkbtn">Log out</button></form>
         </nav>

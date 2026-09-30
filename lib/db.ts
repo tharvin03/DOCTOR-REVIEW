@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS doctors (
   slug TEXT NOT NULL UNIQUE,
   specialty_id INTEGER NOT NULL REFERENCES specialties(id) ON DELETE RESTRICT,
   short_description TEXT NOT NULL DEFAULT '',
+  qualifications TEXT NOT NULL DEFAULT '',
+  years_experience INTEGER,
   hidden INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS doctor_hospitals (
@@ -45,6 +47,12 @@ CREATE TABLE IF NOT EXISTS doctor_procedures (
   procedure_id INTEGER NOT NULL REFERENCES procedures(id) ON DELETE CASCADE,
   PRIMARY KEY (doctor_id, procedure_id)
 );
+CREATE TABLE IF NOT EXISTS source_types (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  requires_link INTEGER NOT NULL DEFAULT 1
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_source_types_name ON source_types (lower(name));
 CREATE TABLE IF NOT EXISTS reviews (
   id SERIAL PRIMARY KEY,
   doctor_id INTEGER NOT NULL REFERENCES doctors(id) ON DELETE CASCADE,
@@ -52,8 +60,7 @@ CREATE TABLE IF NOT EXISTS reviews (
   review_text TEXT NOT NULL,
   reviewer_name TEXT NOT NULL DEFAULT '',
   review_date TEXT,
-  source_type TEXT NOT NULL CHECK (source_type IN
-    ('Google review','Article','Forum or social post','Patient submission','Other')),
+  source_type TEXT NOT NULL,
   source_link TEXT NOT NULL DEFAULT '',
   source_title TEXT NOT NULL DEFAULT '',
   tags TEXT NOT NULL DEFAULT '',
@@ -149,13 +156,50 @@ export class Db {
   }
 }
 
-async function ensureSchema(pool: Pool) {
+/** Source types every new database starts with; editable later in Admin. [name, link required] */
+export const DEFAULT_SOURCE_TYPES: [string, number][] = [
+  ["Google review", 1], ["Facebook post", 1], ["Instagram post", 1], ["YouTube video", 1],
+  ["Twitter / X post", 1], ["Forum or social post", 1], ["Article", 1], ["Patient submission", 0], ["Other", 1],
+];
+const seedSourceTypesSql = () =>
+  `INSERT INTO source_types (name, requires_link) VALUES ${DEFAULT_SOURCE_TYPES.map(([n, r]) => `('${n}', ${r})`).join(", ")} ON CONFLICT DO NOTHING`;
+
+/**
+ * Schema versions: 1 = original release, 2 = doctor profile fields + managed source types.
+ * A brand-new database gets SCHEMA (always the latest shape); an existing one runs the steps it is missing.
+ */
+const LATEST_VERSION = 2;
+const MIGRATIONS: Record<number, () => string> = {
+  2: () => `
+    ALTER TABLE doctors ADD COLUMN IF NOT EXISTS qualifications TEXT NOT NULL DEFAULT '';
+    ALTER TABLE doctors ADD COLUMN IF NOT EXISTS years_experience INTEGER;
+    CREATE TABLE IF NOT EXISTS source_types (id SERIAL PRIMARY KEY, name TEXT NOT NULL, requires_link INTEGER NOT NULL DEFAULT 1);
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_source_types_name ON source_types (lower(name));
+    ALTER TABLE reviews DROP CONSTRAINT IF EXISTS reviews_source_type_check;
+    ${seedSourceTypesSql()};`,
+};
+
+async function currentVersion(q: Queryable): Promise<number> {
+  if (!(await q.query("SELECT to_regclass('reviews') AS t")).rows[0].t) return 0;
+  if (!(await q.query("SELECT to_regclass('schema_migrations') AS t")).rows[0].t) return 1;
+  return (await q.query("SELECT COALESCE(MAX(version), 1) AS v FROM schema_migrations")).rows[0].v;
+}
+
+export async function ensureSchema(pool: Pool) {
   const client = await pool.connect();
   try {
-    if ((await client.query("SELECT to_regclass('reviews') AS t")).rows[0].t) return;
+    if ((await currentVersion(client)) === LATEST_VERSION) return;
     await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock(727001)"); // two cold starts must not race
-    await client.query(SCHEMA);
+    const v = await currentVersion(client); // re-check now that we hold the lock
+    if (v === 0) {
+      await client.query(SCHEMA);
+      await client.query(seedSourceTypesSql());
+    } else {
+      for (let n = v + 1; n <= LATEST_VERSION; n++) await client.query(MIGRATIONS[n]());
+    }
+    await client.query("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY)");
+    await client.query("INSERT INTO schema_migrations (version) VALUES ($1) ON CONFLICT DO NOTHING", [LATEST_VERSION]);
     await client.query("COMMIT");
   } catch (e) {
     await client.query("ROLLBACK").catch(() => {});

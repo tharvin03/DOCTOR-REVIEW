@@ -2,7 +2,7 @@ import { NameCheck } from "./EntityPicker";
 import { saveDoctor } from "@/app/admin/actions";
 import { getDb } from "@/lib/db";
 
-type Doc = { id: number; name: string; specialty_id: number; short_description: string; hidden: number };
+type Doc = { id: number; name: string; specialty_id: number; short_description: string; qualifications: string; years_experience: number | null; hidden: number };
 
 export default async function DoctorForm({ doctor }: { doctor?: Doc }) {
   const db = getDb();
@@ -22,7 +22,12 @@ export default async function DoctorForm({ doctor }: { doctor?: Doc }) {
       <div><label htmlFor="sp">Specialty</label>
         <select id="sp" name="specialty_id" required defaultValue={doctor?.specialty_id ?? ""}>
           <option value="" disabled>Select…</option>{specialties.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-      <div><label htmlFor="sd">Short description</label><textarea id="sd" name="short_description" defaultValue={doctor?.short_description} /></div>
+      <div><label htmlFor="q">Qualifications / education <span className="muted">(optional)</span></label>
+        <textarea id="q" name="qualifications" placeholder="e.g. MBBS (Malaya), MS Orthopaedics (UKM), Fellowship in Sports Surgery" defaultValue={doctor?.qualifications} style={{ minHeight: 80 }} /></div>
+      <div><label htmlFor="ye">Years of experience <span className="muted">(optional)</span></label>
+        <input id="ye" name="years_experience" type="number" min={0} max={80} inputMode="numeric" defaultValue={doctor?.years_experience ?? ""} style={{ maxWidth: 160 }} /></div>
+      <div><label htmlFor="sd">About <span className="muted">(optional)</span></label>
+        <textarea id="sd" name="short_description" placeholder="Anything else patients should know" defaultValue={doctor?.short_description} style={{ minHeight: 140 }} /></div>
       <div><label>Hospitals</label><div className="checklist">
         {hospitals.map((h) => <label key={h.id} className="check"><input type="checkbox" name="hospital_ids" value={h.id} defaultChecked={chosenH.has(h.id)} />{h.name} ({h.city})</label>)}
         {hospitals.length === 0 && <span className="muted">No hospitals yet.</span>}</div></div>

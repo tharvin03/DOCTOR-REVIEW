@@ -12,6 +12,8 @@ export type DoctorCard = {
   slug: string;
   specialty: string;
   short_description: string;
+  qualifications: string;
+  years_experience: number | null;
   review_count: number;
   hospitals: Hospital[];
   procedures: Procedure[];
@@ -24,7 +26,6 @@ export type PublicReview = {
   review_date: string | null;
   source_type: string;
   source_link: string;
-  source_title: string;
   tags: string;
   hospital_name: string;
 };
@@ -57,7 +58,7 @@ async function attach(rows: Omit<DoctorCard, "hospitals" | "procedures">[]): Pro
 }
 
 const CARD_SELECT = `
-  SELECT d.id, d.name, d.slug, s.name AS specialty, d.short_description,
+  SELECT d.id, d.name, d.slug, s.name AS specialty, d.short_description, d.qualifications, d.years_experience,
     (SELECT COUNT(*) FROM reviews r WHERE r.doctor_id = d.id AND r.hidden = 0) AS review_count
   FROM doctors d JOIN specialties s ON s.id = d.specialty_id`;
 
@@ -115,7 +116,7 @@ export async function getDoctorPage(slug: string): Promise<(DoctorCard & { revie
   if (!row) return undefined;
   const reviews = await db.all<PublicReview>(
     `SELECT r.id, r.review_text, r.reviewer_name, r.review_date, r.source_type, r.source_link,
-            r.source_title, r.tags, h.name AS hospital_name
+            r.tags, h.name AS hospital_name
      FROM reviews r JOIN hospitals h ON h.id = r.hospital_id
      WHERE r.doctor_id = ? AND r.hidden = 0
      ORDER BY r.review_date IS NULL, r.review_date DESC, r.id DESC`, row.id);

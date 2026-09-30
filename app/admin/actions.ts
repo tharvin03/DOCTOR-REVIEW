@@ -6,7 +6,8 @@ import { getDb } from "@/lib/db";
 import type { Db } from "@/lib/db";
 import {
   createDoctor, createHospital, createProcedure, createSpecialty, findDoctorByName, findHospital,
-  insertReview, linkDoctorHospital, linkDoctorProcedure, updateDoctorName, updateHospital, updateReview,
+  cleanYears, createSourceType, deleteSourceType, insertReview, linkDoctorHospital, linkDoctorProcedure,
+  updateDoctorName, updateHospital, updateReview, updateSourceType,
 } from "@/lib/repo";
 import { MAX_ROWS, runImport, parseWorkbook, type RawRow, type RowResult } from "@/lib/import";
 import { slugify } from "@/lib/normalize";
@@ -60,12 +61,14 @@ export async function saveDoctor(fd: FormData) {
       let did = id;
       if (did) {
         await updateDoctorName(db, did, str(fd, "name"));
-        await db.run("UPDATE doctors SET specialty_id=?, short_description=?, hidden=? WHERE id=?",
-          num(fd, "specialty_id"), str(fd, "short_description"), fd.get("hidden") ? 1 : 0, did);
+        await db.run("UPDATE doctors SET specialty_id=?, short_description=?, qualifications=?, years_experience=?, hidden=? WHERE id=?",
+          num(fd, "specialty_id"), str(fd, "short_description"), str(fd, "qualifications"),
+          cleanYears(str(fd, "years_experience")), fd.get("hidden") ? 1 : 0, did);
       } else {
         did = await createDoctor(db, {
           name: str(fd, "name"), specialtyId: num(fd, "specialty_id"),
-          description: str(fd, "short_description"), hidden: !!fd.get("hidden"),
+          description: str(fd, "short_description"), qualifications: str(fd, "qualifications"),
+          yearsExperience: cleanYears(str(fd, "years_experience")), hidden: !!fd.get("hidden"),
         });
       }
       await db.run("DELETE FROM doctor_hospitals WHERE doctor_id=?", did);
@@ -136,7 +139,7 @@ export async function saveReview(fd: FormData) {
       const input = {
         doctorId, hospitalId, text: str(fd, "review_text"), reviewerName: str(fd, "reviewer_name"),
         date: str(fd, "review_date"), sourceType: str(fd, "source_type"), sourceLink: str(fd, "source_link"),
-        sourceTitle: str(fd, "source_title"), tags: str(fd, "tags"), hidden: !!fd.get("hidden"),
+        tags: str(fd, "tags"), hidden: !!fd.get("hidden"),
       };
       if (id) { await updateReview(db, id, input); return "/admin/reviews"; }
       await insertReview(db, input);
@@ -183,6 +186,19 @@ export async function saveProcedure(fd: FormData) {
 }
 export async function deleteProcedure(fd: FormData) {
   await flow(fd, "/admin/procedures", "Deleted", async () => { await getDb().run("DELETE FROM procedures WHERE id=?", num(fd, "id")); });
+}
+
+// ---------- source types ----------
+export async function saveSourceType(fd: FormData) {
+  const id = num(fd, "id");
+  await flow(fd, "/admin/source-types", "Saved", async () => {
+    const db = getDb();
+    if (id) await updateSourceType(db, id, str(fd, "name"), !!fd.get("requires_link"));
+    else await createSourceType(db, str(fd, "name"), !!fd.get("requires_link"));
+  });
+}
+export async function removeSourceType(fd: FormData) {
+  await flow(fd, "/admin/source-types", "Deleted", async () => { await deleteSourceType(getDb(), num(fd, "id")); });
 }
 
 // ---------- submissions & removal requests ----------

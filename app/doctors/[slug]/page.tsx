@@ -30,7 +30,19 @@ export default async function DoctorPage({ params }: Props) {
           </ul>
         )}
         {d.procedures.length > 0 && <div>{d.procedures.map((p) => <span className="pill" key={p.id}>{p.name}</span>)}</div>}
-        {d.short_description && <p>{d.short_description}</p>}
+        {(d.years_experience ?? 0) > 0 && <p className="muted" style={{ margin: "8px 0 0" }}>{d.years_experience} year{d.years_experience === 1 ? "" : "s"} of experience</p>}
+        {d.qualifications.trim() && (
+          <>
+            <h2>Qualifications</h2>
+            <p style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{d.qualifications}</p>
+          </>
+        )}
+        {d.short_description.trim() && (
+          <>
+            <h2>About</h2>
+            <p style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{d.short_description}</p>
+          </>
+        )}
 
         <h2>Patient reviews ({d.reviews.length})</h2>
         {d.reviews.length === 0 && <p className="muted">No reviews yet.</p>}

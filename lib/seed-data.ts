@@ -30,9 +30,9 @@ export async function seed(db: Db): Promise<boolean> {
 
     const r = (doctorId: number, hospitalId: number, o: Partial<Parameters<typeof insertReview>[1]> & { text: string }) =>
       insertReview(t, { doctorId, hospitalId, sourceType: "Google review", sourceLink: "https://example.com/reviews/" + Math.random().toString(36).slice(2, 8), ...o });
-    await r(tan, h1, { text: "SAMPLE REVIEW. Explained the ACL reconstruction options clearly and the recovery went smoothly. Physiotherapy plan was well laid out and follow-ups were on time. Would recommend to other athletes dealing with ligament injuries.", reviewerName: "Sample Patient A", date: "2025-03-14", tags: "ACL, MCL", sourceTitle: "Google review" });
-    await r(tan, h1, { text: "SAMPLE REVIEW. Knee replacement went well; walking with a cane after two weeks.", date: "2025-06-02", tags: "Knee replacement", sourceType: "Article", sourceTitle: "News feature (sample)" });
-    await r(lim, h1, { text: "SAMPLE REVIEW. Shoulder pain resolved after arthroscopy. The consultation was thorough and unhurried.", date: "2025-01-20", tags: "Shoulder", sourceType: "Forum or social post", sourceTitle: "Forum thread (sample)" });
+    await r(tan, h1, { text: "SAMPLE REVIEW. Explained the ACL reconstruction options clearly and the recovery went smoothly. Physiotherapy plan was well laid out and follow-ups were on time. Would recommend to other athletes dealing with ligament injuries.", reviewerName: "Sample Patient A", date: "2025-03-14", tags: "ACL, MCL" });
+    await r(tan, h1, { text: "SAMPLE REVIEW. Knee replacement went well; walking with a cane after two weeks.", date: "2025-06-02", tags: "Knee replacement", sourceType: "Article" });
+    await r(lim, h1, { text: "SAMPLE REVIEW. Shoulder pain resolved after arthroscopy. The consultation was thorough and unhurried.", date: "2025-01-20", tags: "Shoulder", sourceType: "Forum or social post" });
     await r(aziz, h2, { text: "SAMPLE REVIEW. Submitted by a patient directly, no external link.", date: "2025-08-09", tags: "Fracture", sourceType: "Patient submission", sourceLink: "" });
   });
   return true;

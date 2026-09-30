@@ -1,15 +1,15 @@
 import ExcelJS from "exceljs";
 import type { Db } from "./db";
-import { CITIES, SOURCE_TYPES } from "./constants";
+import { CITIES } from "./constants";
 import {
   createDoctor, createHospital, findDoctorByName, findHospital, insertReview, linkDoctorHospital,
-  linkDoctorProcedure, reviewExists, validateReview,
+  linkDoctorProcedure, listSourceTypes, prepareReview, reviewExists,
 } from "./repo";
 import { slugify } from "./normalize";
 
 export const TEMPLATE_COLUMNS = [
   "doctor_name", "specialty", "hospital_name", "city", "hospital_address", "doctor_description", "procedures",
-  "review_text", "reviewer_name", "review_date", "source_type", "source_link", "source_title", "tags",
+  "review_text", "reviewer_name", "review_date", "source_type", "source_link", "tags",
 ] as const;
 export const MAX_ROWS = 300;
 const REQUIRED = ["doctor_name", "hospital_name", "city", "review_text", "source_type"];
@@ -87,10 +87,7 @@ async function processRow(db: Db, r: RawRow): Promise<Pick<RowResult, "doctor" |
   const city = parseCity(s("city"));
   if (!city) throw new Error(`city must be one of ${CITIES.join(", ")}`);
   const date = normalizeDate(s("review_date"));
-  const invalid = validateReview({
-    text: s("review_text"), date, sourceType: s("source_type"), sourceLink: s("source_link"),
-  });
-  if (invalid) throw new Error(invalid);
+  await prepareReview(db, { text: s("review_text"), date, sourceType: s("source_type"), sourceLink: s("source_link") });
 
   const doctor = await findDoctorByName(db, s("doctor_name"));
   const doctorState = doctor ? "matched" : "new";
@@ -116,7 +113,7 @@ async function processRow(db: Db, r: RawRow): Promise<Pick<RowResult, "doctor" |
   for (const pid of procIds) await linkDoctorProcedure(db, doctorId, pid);
   await insertReview(db, {
     doctorId, hospitalId, text: s("review_text"), reviewerName: s("reviewer_name"), date,
-    sourceType: s("source_type"), sourceLink: s("source_link"), sourceTitle: s("source_title"), tags: s("tags"),
+    sourceType: s("source_type"), sourceLink: s("source_link"), tags: s("tags"),
   });
   return { doctor: doctorState, hospital: hospital ? "matched" : "new" };
 }
@@ -148,7 +145,8 @@ export async function runImport(db: Db, rows: RawRow[], commit: boolean): Promis
   return results;
 }
 
-export async function buildTemplate(): Promise<Buffer> {
+export async function buildTemplate(db: Db): Promise<Buffer> {
+  const sourceTypes = (await listSourceTypes(db)).map((t) => t.name);
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Reviews");
   ws.columns = TEMPLATE_COLUMNS.map((c) => ({ header: c, key: c, width: Math.max(16, c.length + 4) }));
@@ -158,13 +156,15 @@ export async function buildTemplate(): Promise<Buffer> {
     doctor_name: "Dr Example Name", specialty: "Orthopedics", hospital_name: "Example Specialist Hospital", city: "KL",
     hospital_address: "(optional)", doctor_description: "(optional, used only for new doctors)",
     procedures: "Knee replacement; Knee ligament surgery", review_text: "Full review text…", reviewer_name: "(optional)",
-    review_date: "2025-01-31", source_type: "Google review", source_link: "https://example.com/review",
-    source_title: "Google review", tags: "ACL, MCL",
+    review_date: "2025-01-31", source_type: sourceTypes[0] ?? "Google review", source_link: "https://example.com/review",
+    tags: "ACL, MCL",
   });
   const col = (name: string) => TEMPLATE_COLUMNS.indexOf(name as never) + 1;
+  const typeList = sourceTypes.join(",");
   for (let r = 2; r <= 1000; r++) {
     ws.getCell(r, col("city")).dataValidation = { type: "list", allowBlank: true, formulae: [`"${CITIES.join(",")}"`] };
-    ws.getCell(r, col("source_type")).dataValidation = { type: "list", allowBlank: true, formulae: [`"${SOURCE_TYPES.join(",")}"`] };
+    // Excel rejects inline lists longer than 255 characters, so only add the dropdown when it fits.
+    if (typeList.length <= 255) ws.getCell(r, col("source_type")).dataValidation = { type: "list", allowBlank: true, formulae: [`"${typeList}"`] };
   }
   const help = wb.addWorksheet("Instructions");
   help.columns = [{ width: 24 }, { width: 100 }];
@@ -174,8 +174,8 @@ export async function buildTemplate(): Promise<Buffer> {
     ["specialty", "Required only when the doctor is not already in the database; must match an existing specialty"],
     ["procedures", "Optional. Separate with ; and use existing procedure names for that specialty"],
     ["review_date", "YYYY-MM-DD (DD/MM/YYYY also accepted). Optional"],
-    ["source_type", SOURCE_TYPES.join(" / ")],
-    ["source_link", "Required (http/https) for every source type except Patient submission"],
+    ["source_type", `Must match a name in Admin > Source types. Currently: ${sourceTypes.join(" / ")}`],
+    ["source_link", "Required (http/https) for source types marked \"link required\" (all except Patient submission by default)"],
     ["Limit", "Up to 300 rows per file. Split larger files and import them in parts."],
     ["Matching", "Doctors are matched by name (ignoring Dr/Dr., case and extra spaces). Hospitals by name + city. Missing ones are created."],
     ["Delete row 2", "Row 2 is an example; remove it before uploading."],
