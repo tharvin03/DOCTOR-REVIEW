@@ -3,7 +3,7 @@ import { allVisibleDoctorSlugs } from "@/lib/queries";
 export const dynamic = "force-dynamic";
 
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = process.env.SITE_URL || "http://localhost:3000";
-  return [{ url: base }, ...allVisibleDoctorSlugs().map((d) => ({ url: `${base}/doctors/${d.slug}` }))];
+  return [{ url: base }, ...(await allVisibleDoctorSlugs()).map((d) => ({ url: `${base}/doctors/${d.slug}` }))];
 }

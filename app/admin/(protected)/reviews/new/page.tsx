@@ -6,10 +6,10 @@ import { getDb } from "@/lib/db";
 export default async function NewReview({ searchParams }: { searchParams: Promise<{ err?: string; submission?: string }> }) {
   const sp = await searchParams;
   const db = getDb();
-  const specialties = db.prepare("SELECT id, name FROM specialties ORDER BY name").all() as { id: number; name: string }[];
+  const specialties = await db.all<{ id: number; name: string }>("SELECT id, name FROM specialties ORDER BY name");
   // Optionally prefill from a pending submission ("turn into review").
   const sub = sp.submission
-    ? (db.prepare("SELECT id, message, link FROM submissions WHERE id=?").get(Number(sp.submission)) as { id: number; message: string; link: string } | undefined)
+    ? await db.get<{ id: number; message: string; link: string }>("SELECT id, message, link FROM submissions WHERE id=?", Number(sp.submission) || 0)
     : undefined;
   return (
     <>

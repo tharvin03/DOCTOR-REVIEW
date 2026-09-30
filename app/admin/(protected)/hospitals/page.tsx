@@ -5,10 +5,9 @@ import { deleteHospital } from "../../actions";
 import { getDb } from "@/lib/db";
 
 export default async function Hospitals({ searchParams }: { searchParams: Promise<{ msg?: string; err?: string }> }) {
-  const rows = getDb().prepare(
-    `SELECT h.id, h.name, h.city, (SELECT COUNT(*) FROM doctor_hospitals WHERE hospital_id=h.id) doctors,
-     (SELECT COUNT(*) FROM reviews WHERE hospital_id=h.id) reviews FROM hospitals h ORDER BY h.city, h.name`,
-  ).all() as { id: number; name: string; city: string; doctors: number; reviews: number }[];
+  const rows = await getDb().all<{ id: number; name: string; city: string; doctors: number; reviews: number }>(
+    `SELECT h.id, h.name, h.city, (SELECT COUNT(*) FROM doctor_hospitals WHERE hospital_id=h.id) AS doctors,
+     (SELECT COUNT(*) FROM reviews WHERE hospital_id=h.id) AS reviews FROM hospitals h ORDER BY h.city, h.name`);
   return (
     <>
       <div className="row" style={{ justifyContent: "space-between" }}><h1>Hospitals</h1><Link className="btn" href="/admin/hospitals/new">Add hospital</Link></div>

@@ -8,7 +8,7 @@ type Sub = { id: number; message: string; link: string; consent: number; created
 export default async function Submissions({ searchParams }: { searchParams: Promise<{ msg?: string; err?: string; status?: string }> }) {
   const sp = await searchParams;
   const status = ["pending", "approved", "rejected", "hidden"].includes(sp.status ?? "") ? sp.status! : "pending";
-  const rows = getDb().prepare("SELECT * FROM submissions WHERE status=? ORDER BY id DESC").all(status) as Sub[];
+  const rows = await getDb().all<Sub>("SELECT * FROM submissions WHERE status=? ORDER BY id DESC", status);
   const btn = (s: string, id: number, label: string, cls = "secondary") => (
     <form action={setSubmissionStatus}><input type="hidden" name="id" value={id} /><input type="hidden" name="status" value={s} /><button className={`btn small ${cls}`}>{label}</button></form>
   );

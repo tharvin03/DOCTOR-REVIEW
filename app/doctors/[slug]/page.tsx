@@ -9,14 +9,14 @@ import { doctorMeta, getDoctorPage, specialtyLabel } from "@/lib/queries";
 type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const d = getDoctorPage((await params).slug);
+  const d = await getDoctorPage((await params).slug);
   if (!d) return {};
   const m = doctorMeta(d);
   return { title: m.title, description: m.description, alternates: { canonical: `/doctors/${d.slug}` }, openGraph: { title: m.title, description: m.description } };
 }
 
 export default async function DoctorPage({ params }: Props) {
-  const d = getDoctorPage((await params).slug);
+  const d = await getDoctorPage((await params).slug);
   if (!d) notFound();
   return (
     <main>

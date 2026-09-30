@@ -4,13 +4,17 @@ import { getDb } from "@/lib/db";
 
 type Doc = { id: number; name: string; specialty_id: number; short_description: string; hidden: number };
 
-export default function DoctorForm({ doctor }: { doctor?: Doc }) {
+export default async function DoctorForm({ doctor }: { doctor?: Doc }) {
   const db = getDb();
-  const specialties = db.prepare("SELECT id, name FROM specialties ORDER BY name").all() as { id: number; name: string }[];
-  const hospitals = db.prepare("SELECT id, name, city FROM hospitals ORDER BY name").all() as { id: number; name: string; city: string }[];
-  const procedures = db.prepare("SELECT p.id, p.name, s.name specialty FROM procedures p JOIN specialties s ON s.id=p.specialty_id ORDER BY s.name, p.name").all() as { id: number; name: string; specialty: string }[];
-  const chosenH = new Set(doctor ? (db.prepare("SELECT hospital_id x FROM doctor_hospitals WHERE doctor_id=?").all(doctor.id) as { x: number }[]).map((r) => r.x) : []);
-  const chosenP = new Set(doctor ? (db.prepare("SELECT procedure_id x FROM doctor_procedures WHERE doctor_id=?").all(doctor.id) as { x: number }[]).map((r) => r.x) : []);
+  const [specialties, hospitals, procedures, hs, ps] = await Promise.all([
+    db.all<{ id: number; name: string }>("SELECT id, name FROM specialties ORDER BY name"),
+    db.all<{ id: number; name: string; city: string }>("SELECT id, name, city FROM hospitals ORDER BY name"),
+    db.all<{ id: number; name: string; specialty: string }>("SELECT p.id, p.name, s.name AS specialty FROM procedures p JOIN specialties s ON s.id=p.specialty_id ORDER BY s.name, p.name"),
+    doctor ? db.all<{ x: number }>("SELECT hospital_id AS x FROM doctor_hospitals WHERE doctor_id=?", doctor.id) : Promise.resolve([]),
+    doctor ? db.all<{ x: number }>("SELECT procedure_id AS x FROM doctor_procedures WHERE doctor_id=?", doctor.id) : Promise.resolve([]),
+  ]);
+  const chosenH = new Set(hs.map((r) => r.x));
+  const chosenP = new Set(ps.map((r) => r.x));
   return (
     <form action={saveDoctor} className="stack">
       {doctor && <input type="hidden" name="id" value={doctor.id} />}

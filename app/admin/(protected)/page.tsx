@@ -1,15 +1,15 @@
 import Link from "next/link";
 import { getDb } from "@/lib/db";
 
-export default function Dashboard() {
+export default async function Dashboard() {
   const db = getDb();
-  const c = (sql: string) => (db.prepare(sql).get() as { c: number }).c;
+  const c = async (sql: string) => (await db.get<{ c: number }>(sql))!.c;
   const stats = [
-    ["Doctors", c("SELECT COUNT(*) c FROM doctors"), "/admin/doctors"],
-    ["Hospitals", c("SELECT COUNT(*) c FROM hospitals"), "/admin/hospitals"],
-    ["Reviews", c("SELECT COUNT(*) c FROM reviews"), "/admin/reviews"],
-    ["Pending submissions", c("SELECT COUNT(*) c FROM submissions WHERE status='pending'"), "/admin/submissions"],
-    ["Pending removal requests", c("SELECT COUNT(*) c FROM removal_requests WHERE status='pending'"), "/admin/removals"],
+    ["Doctors", await c("SELECT COUNT(*) AS c FROM doctors"), "/admin/doctors"],
+    ["Hospitals", await c("SELECT COUNT(*) AS c FROM hospitals"), "/admin/hospitals"],
+    ["Reviews", await c("SELECT COUNT(*) AS c FROM reviews"), "/admin/reviews"],
+    ["Pending submissions", await c("SELECT COUNT(*) AS c FROM submissions WHERE status='pending'"), "/admin/submissions"],
+    ["Pending removal requests", await c("SELECT COUNT(*) AS c FROM removal_requests WHERE status='pending'"), "/admin/removals"],
   ] as const;
   return (
     <>

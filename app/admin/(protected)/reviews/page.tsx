@@ -7,11 +7,10 @@ import { getDb } from "@/lib/db";
 export default async function Reviews({ searchParams }: { searchParams: Promise<{ msg?: string; err?: string; q?: string }> }) {
   const sp = await searchParams;
   const like = `%${(sp.q ?? "").trim().toLowerCase()}%`;
-  const rows = getDb().prepare(
-    `SELECT r.id, r.review_text, r.review_date, r.source_type, r.hidden, d.name doctor, h.name hospital
+  const rows = await getDb().all<{ id: number; review_text: string; review_date: string | null; source_type: string; hidden: number; doctor: string; hospital: string }>(
+    `SELECT r.id, r.review_text, r.review_date, r.source_type, r.hidden, d.name AS doctor, h.name AS hospital
      FROM reviews r JOIN doctors d ON d.id=r.doctor_id JOIN hospitals h ON h.id=r.hospital_id
-     WHERE d.name_norm LIKE ? OR lower(r.review_text) LIKE ? ORDER BY r.id DESC LIMIT 200`,
-  ).all(like, like) as { id: number; review_text: string; review_date: string | null; source_type: string; hidden: number; doctor: string; hospital: string }[];
+     WHERE d.name_norm LIKE ? OR lower(r.review_text) LIKE ? ORDER BY r.id DESC LIMIT 200`, like, like);
   return (
     <>
       <div className="row" style={{ justifyContent: "space-between" }}><h1>Reviews</h1><Link className="btn" href="/admin/reviews/new">Add review</Link></div>

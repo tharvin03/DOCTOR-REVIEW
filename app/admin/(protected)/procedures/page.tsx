@@ -5,8 +5,8 @@ import { getDb } from "@/lib/db";
 
 export default async function Procedures({ searchParams }: { searchParams: Promise<{ msg?: string; err?: string }> }) {
   const db = getDb();
-  const specialties = db.prepare("SELECT id, name FROM specialties ORDER BY name").all() as { id: number; name: string }[];
-  const rows = db.prepare("SELECT p.id, p.name, s.name specialty FROM procedures p JOIN specialties s ON s.id=p.specialty_id ORDER BY s.name, p.name").all() as { id: number; name: string; specialty: string }[];
+  const specialties = await db.all<{ id: number; name: string }>("SELECT id, name FROM specialties ORDER BY name");
+  const rows = await db.all<{ id: number; name: string; specialty: string }>("SELECT p.id, p.name, s.name AS specialty FROM procedures p JOIN specialties s ON s.id=p.specialty_id ORDER BY s.name, p.name");
   return (
     <>
       <h1>Procedures</h1>

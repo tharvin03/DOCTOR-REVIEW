@@ -7,12 +7,11 @@ import { getDb } from "@/lib/db";
 export default async function Doctors({ searchParams }: { searchParams: Promise<{ msg?: string; err?: string; q?: string }> }) {
   const sp = await searchParams;
   const like = `%${(sp.q ?? "").trim().toLowerCase()}%`;
-  const rows = getDb().prepare(
-    `SELECT d.id, d.name, d.slug, d.hidden, s.name specialty,
-      (SELECT COUNT(*) FROM reviews r WHERE r.doctor_id=d.id) reviews,
-      (SELECT group_concat(h.name, ', ') FROM doctor_hospitals dh JOIN hospitals h ON h.id=dh.hospital_id WHERE dh.doctor_id=d.id) hospitals
-     FROM doctors d JOIN specialties s ON s.id=d.specialty_id WHERE d.name_norm LIKE ? ORDER BY d.name`,
-  ).all(like) as { id: number; name: string; slug: string; hidden: number; specialty: string; reviews: number; hospitals: string | null }[];
+  const rows = await getDb().all<{ id: number; name: string; slug: string; hidden: number; specialty: string; reviews: number; hospitals: string | null }>(
+    `SELECT d.id, d.name, d.slug, d.hidden, s.name AS specialty,
+      (SELECT COUNT(*) FROM reviews r WHERE r.doctor_id=d.id) AS reviews,
+      (SELECT string_agg(h.name, ', ') FROM doctor_hospitals dh JOIN hospitals h ON h.id=dh.hospital_id WHERE dh.doctor_id=d.id) AS hospitals
+     FROM doctors d JOIN specialties s ON s.id=d.specialty_id WHERE d.name_norm LIKE ? ORDER BY d.name`, like);
   return (
     <>
       <div className="row" style={{ justifyContent: "space-between" }}><h1>Doctors</h1><Link className="btn" href="/admin/doctors/new">Add doctor</Link></div>

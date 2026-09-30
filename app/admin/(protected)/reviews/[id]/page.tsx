@@ -6,12 +6,11 @@ import { getDb } from "@/lib/db";
 
 export default async function EditReview({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ msg?: string; err?: string }> }) {
   const db = getDb();
-  const r = db.prepare(
-    `SELECT r.*, d.name doctor_name, h.name hospital_name FROM reviews r
-     JOIN doctors d ON d.id=r.doctor_id JOIN hospitals h ON h.id=r.hospital_id WHERE r.id=?`,
-  ).get(Number((await params).id)) as Record<string, string | number | null> | undefined;
+  const r = await db.get<Record<string, string | number | null>>(
+    `SELECT r.*, d.name AS doctor_name, h.name AS hospital_name FROM reviews r
+     JOIN doctors d ON d.id=r.doctor_id JOIN hospitals h ON h.id=r.hospital_id WHERE r.id=?`, Number((await params).id) || 0);
   if (!r) notFound();
-  const specialties = db.prepare("SELECT id, name FROM specialties ORDER BY name").all() as { id: number; name: string }[];
+  const specialties = await db.all<{ id: number; name: string }>("SELECT id, name FROM specialties ORDER BY name");
   return (
     <>
       <h1>Edit review #{r.id}</h1>

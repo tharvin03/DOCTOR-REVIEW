@@ -1,3 +1,6 @@
+// The import previews/commits rows one by one against the database; allow it time on Vercel.
+export const maxDuration = 60;
+
 import ImportClient from "@/app/components/ImportClient";
 
 export default function ImportPage() {

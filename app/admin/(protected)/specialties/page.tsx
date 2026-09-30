@@ -4,7 +4,7 @@ import { deleteSpecialty, saveSpecialty } from "../../actions";
 import { getDb } from "@/lib/db";
 
 export default async function Specialties({ searchParams }: { searchParams: Promise<{ msg?: string; err?: string }> }) {
-  const rows = getDb().prepare("SELECT s.id, s.name, (SELECT COUNT(*) FROM doctors WHERE specialty_id=s.id) doctors FROM specialties s ORDER BY s.name").all() as { id: number; name: string; doctors: number }[];
+  const rows = await getDb().all<{ id: number; name: string; doctors: number }>("SELECT s.id, s.name, (SELECT COUNT(*) FROM doctors WHERE specialty_id=s.id) AS doctors FROM specialties s ORDER BY s.name");
   return (
     <>
       <h1>Specialties</h1>

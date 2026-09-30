@@ -20,8 +20,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
           <p>Read patient reviews from public sources, each linked back to where it was originally posted.</p>
           <SearchForm
             states={Object.values(STATES).map(({ slug, label }) => ({ slug, label }))}
-            specialties={listSpecialties()}
-            procedures={listProcedures()}
+            specialties={await listSpecialties()}
+            procedures={await listProcedures()}
           />
         </div>
       </section>

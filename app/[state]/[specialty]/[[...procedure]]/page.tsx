@@ -9,17 +9,17 @@ import {
 
 type Params = { state: string; specialty: string; procedure?: string[] };
 
-function resolve(p: Params) {
+async function resolve(p: Params) {
   const state = STATES[p.state];
-  const specialty = getSpecialtyBySlug(p.specialty);
+  const specialty = await getSpecialtyBySlug(p.specialty);
   if (!state || !specialty || (p.procedure?.length ?? 0) > 1) return null;
-  const procedure = p.procedure?.[0] ? getProcedureBySlug(specialty.id, p.procedure[0]) : undefined;
+  const procedure = p.procedure?.[0] ? await getProcedureBySlug(specialty.id, p.procedure[0]) : undefined;
   if (p.procedure?.[0] && !procedure) return null;
   return { state, specialty, procedure };
 }
 
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
-  const r = resolve(await params);
+  const r = await resolve(await params);
   if (!r) return {};
   const what = r.procedure ? `${r.procedure.name} (${r.specialty.name})` : r.specialty.name;
   return {
@@ -31,16 +31,16 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
 export default async function Results({
   params, searchParams,
 }: { params: Promise<Params>; searchParams: Promise<{ hospital?: string }> }) {
-  const r = resolve(await params);
+  const r = await resolve(await params);
   if (!r) notFound();
   const { hospital } = await searchParams;
-  const hospitals = hospitalsFor(r.state.city, r.specialty.id);
+  const hospitals = await hospitalsFor(r.state.city, r.specialty.id);
   const hospitalSlug = hospitals.some((h) => h.slug === hospital) ? hospital : undefined;
-  const doctors = searchDoctors({
+  const doctors = await searchDoctors({
     city: r.state.city, specialtyId: r.specialty.id, procedureId: r.procedure?.id, hospitalSlug,
   });
   const base = `/${r.state.slug}/${r.specialty.slug}${r.procedure ? "/" + r.procedure.slug : ""}`;
-  const otherProcs = listProcedures().filter((p) => p.specialty_id === r.specialty.id);
+  const otherProcs = (await listProcedures()).filter((p) => p.specialty_id === r.specialty.id);
 
   return (
     <main>

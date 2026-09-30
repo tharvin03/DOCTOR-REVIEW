@@ -23,7 +23,7 @@ export async function submitExperience(fd: FormData) {
   if (fd.get("consent") !== "on") redirect("/?error=consent#share");
   if (link && !isHttpUrl(link)) redirect("/?error=link#share");
 
-  getDb().prepare("INSERT INTO submissions (message, link, consent) VALUES (?,?,1)").run(message, link);
+  await getDb().run("INSERT INTO submissions (message, link, consent) VALUES (?,?,1)", message, link);
   await notifyDiscord({ type: "submission", summary: message.slice(0, 200) });
   redirect("/?sent=1#share");
 }
@@ -38,7 +38,7 @@ export async function submitRemoval(fd: FormData) {
   const reason = str(fd, "reason").slice(0, 3000);
   if (!name || !link || !reason) redirect("/request-removal?error=missing");
 
-  getDb().prepare("INSERT INTO removal_requests (name, review_link, reason) VALUES (?,?,?)").run(name, link, reason);
+  await getDb().run("INSERT INTO removal_requests (name, review_link, reason) VALUES (?,?,?)", name, link, reason);
   await notifyDiscord({ type: "removal_request", summary: `${name}: ${link}`.slice(0, 200) });
   redirect("/request-removal?sent=1");
 }

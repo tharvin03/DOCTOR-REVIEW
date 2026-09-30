@@ -7,21 +7,21 @@ type Req = { id: number; name: string; review_link: string; reason: string; stat
 type Match = { id: number; review_text: string; hidden: number; doctor: string };
 
 /** Reviews a removal request may refer to: our own #review-ID anchors, or the original source link. */
-function matchReviews(link: string): Match[] {
+async function matchReviews(link: string): Promise<Match[]> {
   const db = getDb();
-  const sel = `SELECT r.id, r.review_text, r.hidden, d.name doctor FROM reviews r JOIN doctors d ON d.id=r.doctor_id`;
+  const sel = `SELECT r.id, r.review_text, r.hidden, d.name AS doctor FROM reviews r JOIN doctors d ON d.id=r.doctor_id`;
   const out = new Map<number, Match>();
   const anchor = link.match(/#review-(\d+)/);
-  if (anchor) for (const m of db.prepare(`${sel} WHERE r.id=?`).all(Number(anchor[1])) as Match[]) out.set(m.id, m);
+  if (anchor) for (const m of await db.all<Match>(`${sel} WHERE r.id=?`, Number(anchor[1]))) out.set(m.id, m);
   const clean = link.trim().replace(/\/+$/, "");
-  if (clean) for (const m of db.prepare(`${sel} WHERE r.source_link != '' AND rtrim(r.source_link,'/') = ?`).all(clean) as Match[]) out.set(m.id, m);
+  if (clean) for (const m of await db.all<Match>(`${sel} WHERE r.source_link != '' AND rtrim(r.source_link,'/') = ?`, clean)) out.set(m.id, m);
   return [...out.values()];
 }
 
 export default async function Removals({ searchParams }: { searchParams: Promise<{ msg?: string; err?: string; status?: string }> }) {
   const sp = await searchParams;
   const status = ["pending", "approved", "rejected"].includes(sp.status ?? "") ? sp.status! : "pending";
-  const rows = getDb().prepare("SELECT * FROM removal_requests WHERE status=? ORDER BY id DESC").all(status) as Req[];
+  const rows = await getDb().all<Req>("SELECT * FROM removal_requests WHERE status=? ORDER BY id DESC", status);
   const back = `/admin/removals?status=${status}`;
   const setBtn = (s: string, id: number, label: string, cls = "secondary") => (
     <form action={setRemovalStatus}><input type="hidden" name="id" value={id} /><input type="hidden" name="status" value={s} /><button className={`btn small ${cls}`}>{label}</button></form>
@@ -34,8 +34,8 @@ export default async function Removals({ searchParams }: { searchParams: Promise
         {["pending", "approved", "rejected"].map((s) => <Link key={s} href={`/admin/removals?status=${s}`} className={`pill ${s === status ? "ok" : ""}`}>{s}</Link>)}
       </div>
       {rows.length === 0 && <p className="muted">Nothing here.</p>}
-      {rows.map((q) => {
-        const matches = matchReviews(q.review_link);
+      {await Promise.all(rows.map(async (q) => {
+        const matches = await matchReviews(q.review_link);
         return (
           <div className="card" key={q.id}>
             <div className="muted small">#{q.id} · {q.created_at} · from {q.name}</div>
@@ -53,7 +53,7 @@ export default async function Removals({ searchParams }: { searchParams: Promise
               {q.status !== "pending" && setBtn("pending", q.id, "Back to pending")}
             </div>
           </div>);
-      })}
+      }))}
     </>
   );
 }

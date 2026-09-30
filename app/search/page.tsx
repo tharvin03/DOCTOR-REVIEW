@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Doctor name search | Patient Reviews
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const q = ((await searchParams).q ?? "").slice(0, 100);
-  const doctors = searchDoctorsByName(q);
+  const doctors = await searchDoctorsByName(q);
   return (
     <main>
       <div className="wrap">

@@ -29,33 +29,31 @@ export type PublicReview = {
   hospital_name: string;
 };
 
-export const listSpecialties = () =>
-  getDb().prepare("SELECT id, name, slug FROM specialties ORDER BY name").all() as Specialty[];
+export const listSpecialties = () => getDb().all<Specialty>("SELECT id, name, slug FROM specialties ORDER BY name");
 
-export const listProcedures = () =>
-  getDb().prepare("SELECT id, specialty_id, name, slug FROM procedures ORDER BY name").all() as Procedure[];
+export const listProcedures = () => getDb().all<Procedure>("SELECT id, specialty_id, name, slug FROM procedures ORDER BY name");
 
 export function getSpecialtyBySlug(slug: string) {
-  return getDb().prepare("SELECT id, name, slug FROM specialties WHERE slug = ?").get(slug) as Specialty | undefined;
+  return getDb().get<Specialty>("SELECT id, name, slug FROM specialties WHERE slug = ?", slug);
 }
 
 export function getProcedureBySlug(specialtyId: number, slug: string) {
-  return getDb()
-    .prepare("SELECT id, specialty_id, name, slug FROM procedures WHERE specialty_id = ? AND slug = ?")
-    .get(specialtyId, slug) as Procedure | undefined;
+  return getDb().get<Procedure>("SELECT id, specialty_id, name, slug FROM procedures WHERE specialty_id = ? AND slug = ?", specialtyId, slug);
 }
 
-function attach(rows: Omit<DoctorCard, "hospitals" | "procedures">[]): DoctorCard[] {
+async function attach(rows: Omit<DoctorCard, "hospitals" | "procedures">[]): Promise<DoctorCard[]> {
   const db = getDb();
-  const hs = db.prepare(
-    `SELECT h.id, h.name, h.city, h.slug, h.address FROM doctor_hospitals dh
-     JOIN hospitals h ON h.id = dh.hospital_id WHERE dh.doctor_id = ? ORDER BY h.name`,
+  return Promise.all(
+    rows.map(async (r) => ({
+      ...r,
+      hospitals: await db.all<Hospital>(
+        `SELECT h.id, h.name, h.city, h.slug, h.address FROM doctor_hospitals dh
+         JOIN hospitals h ON h.id = dh.hospital_id WHERE dh.doctor_id = ? ORDER BY h.name`, r.id),
+      procedures: await db.all<Procedure>(
+        `SELECT p.id, p.specialty_id, p.name, p.slug FROM doctor_procedures dp
+         JOIN procedures p ON p.id = dp.procedure_id WHERE dp.doctor_id = ? ORDER BY p.name`, r.id),
+    })),
   );
-  const ps = db.prepare(
-    `SELECT p.id, p.specialty_id, p.name, p.slug FROM doctor_procedures dp
-     JOIN procedures p ON p.id = dp.procedure_id WHERE dp.doctor_id = ? ORDER BY p.name`,
-  );
-  return rows.map((r) => ({ ...r, hospitals: hs.all(r.id) as Hospital[], procedures: ps.all(r.id) as Procedure[] }));
 }
 
 const CARD_SELECT = `
@@ -63,12 +61,12 @@ const CARD_SELECT = `
     (SELECT COUNT(*) FROM reviews r WHERE r.doctor_id = d.id AND r.hidden = 0) AS review_count
   FROM doctors d JOIN specialties s ON s.id = d.specialty_id`;
 
-export function searchDoctors(opts: {
+export async function searchDoctors(opts: {
   city: City;
   specialtyId: number;
   procedureId?: number;
   hospitalSlug?: string;
-}): DoctorCard[] {
+}): Promise<DoctorCard[]> {
   const params: (string | number)[] = [opts.specialtyId, opts.city];
   let hospitalClause = "";
   if (opts.hospitalSlug) {
@@ -80,59 +78,52 @@ export function searchDoctors(opts: {
     procClause = " AND EXISTS (SELECT 1 FROM doctor_procedures dp WHERE dp.doctor_id = d.id AND dp.procedure_id = ?)";
     params.push(opts.procedureId);
   }
-  const rows = getDb()
-    .prepare(
+  const rows = await getDb().all<Omit<DoctorCard, "hospitals" | "procedures">>(
       `${CARD_SELECT}
        WHERE d.hidden = 0 AND d.specialty_id = ?
          AND EXISTS (SELECT 1 FROM doctor_hospitals dh JOIN hospitals h ON h.id = dh.hospital_id
                      WHERE dh.doctor_id = d.id AND h.city = ?${hospitalClause})${procClause}
        ORDER BY review_count DESC, d.name`,
-    )
-    .all(...params) as Omit<DoctorCard, "hospitals" | "procedures">[];
+      ...params,
+    );
   return attach(rows);
 }
 
-export function searchDoctorsByName(q: string): DoctorCard[] {
+export async function searchDoctorsByName(q: string): Promise<DoctorCard[]> {
   const norm = normalizeDoctorName(q);
   if (norm.length < 2) return [];
   const like = "%" + norm.replace(/[\\%_]/g, "\\$&") + "%";
-  const rows = getDb()
-    .prepare(`${CARD_SELECT} WHERE d.hidden = 0 AND d.name_norm LIKE ? ESCAPE '\\' ORDER BY d.name LIMIT 50`)
-    .all(like) as Omit<DoctorCard, "hospitals" | "procedures">[];
+  const rows = await getDb().all<Omit<DoctorCard, "hospitals" | "procedures">>(
+    `${CARD_SELECT} WHERE d.hidden = 0 AND d.name_norm LIKE ? ESCAPE '\\' ORDER BY d.name LIMIT 50`, like);
   return attach(rows);
 }
 
 /** Hospitals in a city that have at least one visible doctor of the specialty (for the filter). */
-export function hospitalsFor(city: City, specialtyId: number): Hospital[] {
-  return getDb()
-    .prepare(
+export function hospitalsFor(city: City, specialtyId: number): Promise<Hospital[]> {
+  return getDb().all<Hospital>(
       `SELECT DISTINCT h.id, h.name, h.city, h.slug, h.address FROM hospitals h
        JOIN doctor_hospitals dh ON dh.hospital_id = h.id
        JOIN doctors d ON d.id = dh.doctor_id AND d.hidden = 0 AND d.specialty_id = ?
        WHERE h.city = ? ORDER BY h.name`,
-    )
-    .all(specialtyId, city) as Hospital[];
+      specialtyId, city,
+    );
 }
 
-export function getDoctorPage(slug: string): (DoctorCard & { reviews: PublicReview[] }) | undefined {
-  const row = getDb()
-    .prepare(`${CARD_SELECT} WHERE d.hidden = 0 AND d.slug = ?`)
-    .get(slug) as Omit<DoctorCard, "hospitals" | "procedures"> | undefined;
+export async function getDoctorPage(slug: string): Promise<(DoctorCard & { reviews: PublicReview[] }) | undefined> {
+  const db = getDb();
+  const row = await db.get<Omit<DoctorCard, "hospitals" | "procedures">>(`${CARD_SELECT} WHERE d.hidden = 0 AND d.slug = ?`, slug);
   if (!row) return undefined;
-  const reviews = getDb()
-    .prepare(
-      `SELECT r.id, r.review_text, r.reviewer_name, r.review_date, r.source_type, r.source_link,
-              r.source_title, r.tags, h.name AS hospital_name
-       FROM reviews r JOIN hospitals h ON h.id = r.hospital_id
-       WHERE r.doctor_id = ? AND r.hidden = 0
-       ORDER BY r.review_date IS NULL, r.review_date DESC, r.id DESC`,
-    )
-    .all(row.id) as PublicReview[];
-  return { ...attach([row])[0], reviews };
+  const reviews = await db.all<PublicReview>(
+    `SELECT r.id, r.review_text, r.reviewer_name, r.review_date, r.source_type, r.source_link,
+            r.source_title, r.tags, h.name AS hospital_name
+     FROM reviews r JOIN hospitals h ON h.id = r.hospital_id
+     WHERE r.doctor_id = ? AND r.hidden = 0
+     ORDER BY r.review_date IS NULL, r.review_date DESC, r.id DESC`, row.id);
+  return { ...(await attach([row]))[0], reviews };
 }
 
-export function allVisibleDoctorSlugs(): { slug: string }[] {
-  return getDb().prepare("SELECT slug FROM doctors WHERE hidden = 0").all() as { slug: string }[];
+export function allVisibleDoctorSlugs(): Promise<{ slug: string }[]> {
+  return getDb().all<{ slug: string }>("SELECT slug FROM doctors WHERE hidden = 0");
 }
 
 // ---- SEO helpers ----
