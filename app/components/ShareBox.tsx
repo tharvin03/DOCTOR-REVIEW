@@ -1,3 +1,4 @@
+import SubmitButton from "@/app/components/SubmitButton";
 import { submitExperience } from "@/app/actions";
 
 export default function ShareBox({ sent }: { sent?: boolean }) {
@@ -21,7 +22,7 @@ export default function ShareBox({ sent }: { sent?: boolean }) {
           <input type="checkbox" name="consent" required />
           <span>I consent to my submission being reviewed and possibly published on this site.</span>
         </label>
-        <button className="btn">Submit</button>
+        <SubmitButton className="btn" pendingText="Sending…">Submit</SubmitButton>
       </form>
     </section>
   );

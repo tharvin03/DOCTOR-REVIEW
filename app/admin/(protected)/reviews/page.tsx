@@ -1,4 +1,5 @@
-import Link from "next/link";
+import SubmitButton from "@/app/components/SubmitButton";
+import Link from "@/app/components/PLink";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import Flash from "@/app/components/Flash";
 import { deleteReview, toggleReview } from "../../actions";
@@ -16,7 +17,7 @@ export default async function Reviews({ searchParams }: { searchParams: Promise<
     <>
       <div className="row" style={{ justifyContent: "space-between" }}><h1>Reviews</h1><Link className="btn" href="/admin/reviews/new">Add review</Link></div>
       <Flash {...sp} />
-      <form className="row" style={{ marginBottom: 12 }}><input type="search" name="q" defaultValue={sp.q} placeholder="Search doctor or text" style={{ flex: 1 }} /><button className="btn secondary">Search</button></form>
+      <form className="row" style={{ marginBottom: 12 }}><input type="search" name="q" defaultValue={sp.q} placeholder="Search doctor or text" style={{ flex: 1 }} /><SubmitButton className="btn secondary" pendingText="Searching…">Search</SubmitButton></form>
       <div className="table-scroll"><table>
         <thead><tr><th>Doctor / hospital</th><th>Review</th><th></th></tr></thead>
         <tbody>{rows.map((r) => (
@@ -25,7 +26,7 @@ export default async function Reviews({ searchParams }: { searchParams: Promise<
             <td className="small"><Link href={`/admin/reviews/${r.id}`}>{r.review_text.slice(0, 120)}{r.review_text.length > 120 ? "…" : ""}</Link><br />
               <span className="muted">{r.source_type} · {r.review_date ?? "no date"}</span> {r.procedures ? <span className="pill">{r.procedures}</span> : <span className="pill warn">no procedure</span>} {r.hidden ? <span className="pill bad">hidden</span> : null}</td>
             <td><div className="row">
-              <form action={toggleReview}><input type="hidden" name="id" value={r.id} /><button className="btn small secondary">{r.hidden ? "Unhide" : "Hide"}</button></form>
+              <form action={toggleReview}><input type="hidden" name="id" value={r.id} /><SubmitButton className="btn small secondary">{r.hidden ? "Unhide" : "Hide"}</SubmitButton></form>
               <form action={deleteReview}><input type="hidden" name="id" value={r.id} /><ConfirmButton message="Delete this review permanently?">Delete</ConfirmButton></form>
             </div></td>
           </tr>))}</tbody>

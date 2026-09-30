@@ -1,3 +1,4 @@
+import SubmitButton from "@/app/components/SubmitButton";
 import type { Metadata } from "next";
 import { submitRemoval } from "@/app/actions";
 
@@ -18,7 +19,7 @@ export default async function RemovalPage({ searchParams }: { searchParams: Prom
           <div><label htmlFor="rl">Link to the review (on this site or the original source)</label>
             <input id="rl" name="review_link" type="text" required maxLength={2000} defaultValue={sp.link ?? ""} /></div>
           <div><label htmlFor="rs">Reason</label><textarea id="rs" name="reason" required maxLength={3000} /></div>
-          <button className="btn">Submit request</button>
+          <SubmitButton className="btn" pendingText="Sending…">Submit request</SubmitButton>
         </form>
       </div>
     </main>

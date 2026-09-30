@@ -1,4 +1,5 @@
-import Link from "next/link";
+import SubmitButton from "@/app/components/SubmitButton";
+import Link from "@/app/components/PLink";
 import Flash from "@/app/components/Flash";
 import { hideReview, setRemovalStatus } from "../../actions";
 import { getDb } from "@/lib/db";
@@ -24,7 +25,7 @@ export default async function Removals({ searchParams }: { searchParams: Promise
   const rows = await getDb().all<Req>("SELECT * FROM removal_requests WHERE status=? ORDER BY id DESC", status);
   const back = `/admin/removals?status=${status}`;
   const setBtn = (s: string, id: number, label: string, cls = "secondary") => (
-    <form action={setRemovalStatus}><input type="hidden" name="id" value={id} /><input type="hidden" name="status" value={s} /><button className={`btn small ${cls}`}>{label}</button></form>
+    <form action={setRemovalStatus}><input type="hidden" name="id" value={id} /><input type="hidden" name="status" value={s} /><SubmitButton className={`btn small ${cls}`}>{label}</SubmitButton></form>
   );
   return (
     <>
@@ -44,7 +45,7 @@ export default async function Removals({ searchParams }: { searchParams: Promise
             {matches.length > 0 ? matches.map((m) => (
               <div className="notice" key={m.id} style={{ marginBottom: 8 }}>
                 Matching review #{m.id} ({m.doctor}): {m.review_text.slice(0, 100)}… {m.hidden ? <span className="pill bad">hidden</span> :
-                  <form action={hideReview} style={{ display: "inline" }}><input type="hidden" name="id" value={m.id} /><input type="hidden" name="back" value={back} /><button className="btn small danger">Hide review</button></form>}
+                  <form action={hideReview} style={{ display: "inline" }}><input type="hidden" name="id" value={m.id} /><input type="hidden" name="back" value={back} /><SubmitButton className="btn small danger">Hide review</SubmitButton></form>}
                 {" "}<Link href={`/admin/reviews/${m.id}`}>Open</Link>
               </div>)) : <p className="muted small">No review matched this link automatically. Find it under Reviews.</p>}
             <div className="row">

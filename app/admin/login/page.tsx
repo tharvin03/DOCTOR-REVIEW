@@ -1,3 +1,4 @@
+import SubmitButton from "@/app/components/SubmitButton";
 import { login } from "../actions";
 
 export const metadata = { title: "Admin login", robots: { index: false } };
@@ -12,7 +13,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         {!process.env.ADMIN_PASSWORD && <p className="notice">ADMIN_PASSWORD is not set on the server.</p>}
         <form action={login} className="card stack">
           <div><label htmlFor="pw">Password</label><input id="pw" name="password" type="password" required autoFocus /></div>
-          <button className="btn">Sign in</button>
+          <SubmitButton className="btn" pendingText="Signing in…">Sign in</SubmitButton>
         </form>
       </div>
     </main>

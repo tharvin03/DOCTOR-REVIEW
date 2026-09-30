@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Suspense } from "react";
+import Link from "@/app/components/PLink";
+import NavProgress from "@/app/components/NavProgress";
 import "./globals.css";
 import { DISCLAIMER, SITE_NAME } from "@/lib/constants";
 
@@ -19,6 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
       <body>
+        <Suspense fallback={null}><NavProgress /></Suspense>
         <header className="site-header">
           <div className="wrap">
             <Link href="/" className="logo">{SITE_NAME}</Link>

@@ -1,4 +1,5 @@
-import Link from "next/link";
+import SubmitButton from "@/app/components/SubmitButton";
+import Link from "@/app/components/PLink";
 import Flash from "@/app/components/Flash";
 import { setSubmissionStatus } from "../../actions";
 import { getDb } from "@/lib/db";
@@ -10,7 +11,7 @@ export default async function Submissions({ searchParams }: { searchParams: Prom
   const status = ["pending", "approved", "rejected", "hidden"].includes(sp.status ?? "") ? sp.status! : "pending";
   const rows = await getDb().all<Sub>("SELECT * FROM submissions WHERE status=? ORDER BY id DESC", status);
   const btn = (s: string, id: number, label: string, cls = "secondary") => (
-    <form action={setSubmissionStatus}><input type="hidden" name="id" value={id} /><input type="hidden" name="status" value={s} /><button className={`btn small ${cls}`}>{label}</button></form>
+    <form action={setSubmissionStatus}><input type="hidden" name="id" value={id} /><input type="hidden" name="status" value={s} /><SubmitButton className={`btn small ${cls}`}>{label}</SubmitButton></form>
   );
   return (
     <>

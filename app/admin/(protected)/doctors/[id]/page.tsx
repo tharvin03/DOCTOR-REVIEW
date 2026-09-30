@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/app/components/PLink";
 import { notFound } from "next/navigation";
 import DoctorForm from "@/app/components/DoctorForm";
 import Flash from "@/app/components/Flash";

@@ -1,3 +1,4 @@
+import SubmitButton from "@/app/components/SubmitButton";
 import { NameCheck } from "./EntityPicker";
 import { saveDoctor } from "@/app/admin/actions";
 import { getDb } from "@/lib/db";
@@ -30,7 +31,7 @@ export default async function DoctorForm({ doctor }: { doctor?: Doc }) {
         {hospitals.length === 0 && <span className="muted">No hospitals yet.</span>}</div></div>
       <p className="muted small">Procedures are tagged on each review (Add review → Procedures), and a doctor's procedures are shown automatically from their reviews.</p>
       <label className="check"><input type="checkbox" name="hidden" defaultChecked={!!doctor?.hidden} /> Hidden (not shown publicly)</label>
-      <button className="btn">Save doctor</button>
+      <SubmitButton className="btn" pendingText="Saving…">Save doctor</SubmitButton>
     </form>
   );
 }

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/app/components/PLink";
 import SearchForm from "./components/SearchForm";
 import ShareBox from "./components/ShareBox";
 import { STATES } from "@/lib/constants";

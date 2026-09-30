@@ -1,4 +1,5 @@
-import Link from "next/link";
+import SubmitButton from "@/app/components/SubmitButton";
+import Link from "@/app/components/PLink";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import DoctorCardView from "@/app/components/DoctorCardView";
@@ -54,7 +55,7 @@ export default async function Results({
             <option value="">All hospitals</option>
             {hospitals.map((h) => <option key={h.id} value={h.slug}>{h.name}</option>)}
           </select>
-          <button className="btn secondary">Filter</button>
+          <SubmitButton className="btn secondary" pendingText="Filtering…">Filter</SubmitButton>
         </form>
 
         {doctors.length === 0 ? (

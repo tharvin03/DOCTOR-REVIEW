@@ -1,4 +1,5 @@
 "use client";
+import SubmitButton from "@/app/components/SubmitButton";
 import { useActionState } from "react";
 import { commitImport, previewImport, type ImportState } from "@/app/admin/actions";
 import type { RowResult } from "@/lib/import";
@@ -27,8 +28,8 @@ function Table({ rows }: { rows: RowResult[] }) {
 }
 
 export default function ImportClient() {
-  const [preview, previewAction, previewing] = useActionState<ImportState, FormData>(previewImport, {});
-  const [done, commitAction, committing] = useActionState<ImportState, FormData>(commitImport, {});
+  const [preview, previewAction] = useActionState<ImportState, FormData>(previewImport, {});
+  const [done, commitAction] = useActionState<ImportState, FormData>(commitImport, {});
 
   if (done.committed && done.rows) {
     const ok = done.rows.filter((r) => r.status !== "error").length;
@@ -49,8 +50,8 @@ export default function ImportClient() {
       <form action={previewAction} className="card stack">
         <div><label htmlFor="file">Excel file (.xlsx)</label><input id="file" name="file" type="file" accept=".xlsx" required /></div>
         <div className="row">
-          <button className="btn" disabled={previewing}>{previewing ? "Reading…" : "Preview"}</button>
-          <a href="/admin/import/template" className="btn secondary">Download template</a>
+          <SubmitButton pendingText="Reading…">Preview</SubmitButton>
+          <a href="/admin/import/template" className="btn secondary" data-no-progress>Download template</a>
         </div>
       </form>
       {preview.error && <p className="notice error">{preview.error}</p>}
@@ -66,9 +67,9 @@ export default function ImportClient() {
           <Table rows={rows} />
           <form action={commitAction}>
             <input type="hidden" name="raw" value={preview.raw} />
-            <button className="btn" disabled={committing || count("error") === rows.length}>
-              {committing ? "Importing…" : `Import ${rows.length - count("error")} valid row(s)`}
-            </button>
+            <SubmitButton disabled={count("error") === rows.length} pendingText="Importing… (this can take a minute)">
+              {`Import ${rows.length - count("error")} valid row(s)`}
+            </SubmitButton>
             {count("error") > 0 && <span className="muted small"> Rows with errors will be skipped and reported.</span>}
           </form>
         </>

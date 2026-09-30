@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/app/components/PLink";
 import type { DoctorCard } from "@/lib/queries";
 
 export default function DoctorCardView({ d, procedure }: { d: DoctorCard; procedure?: { slug: string; name: string } }) {

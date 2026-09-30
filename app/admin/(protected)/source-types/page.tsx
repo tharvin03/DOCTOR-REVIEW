@@ -1,3 +1,4 @@
+import SubmitButton from "@/app/components/SubmitButton";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import Flash from "@/app/components/Flash";
 import { removeSourceType, saveSourceType } from "../../actions";
@@ -15,7 +16,7 @@ export default async function SourceTypes({ searchParams }: { searchParams: Prom
       <form action={saveSourceType} className="card row">
         <input name="name" placeholder="New source type (e.g. TikTok video)" required style={{ flex: 1, minWidth: 180 }} />
         <label className="check" style={{ margin: 0 }}><input type="checkbox" name="requires_link" defaultChecked /> Link required</label>
-        <button className="btn">Add</button>
+        <SubmitButton className="btn" pendingText="Adding…">Add</SubmitButton>
       </form>
       {rows.map((t) => (
         <div className="card row" key={t.id}>
@@ -23,7 +24,7 @@ export default async function SourceTypes({ searchParams }: { searchParams: Prom
             <input type="hidden" name="id" value={t.id} />
             <input name="name" defaultValue={t.name} required style={{ flex: 1, minWidth: 160 }} />
             <label className="check" style={{ margin: 0 }}><input type="checkbox" name="requires_link" defaultChecked={!!t.requires_link} /> Link required</label>
-            <button className="btn small secondary">Save</button>
+            <SubmitButton className="btn small secondary" pendingText="Saving…">Save</SubmitButton>
           </form>
           <span className="muted small">{t.reviews} review(s)</span>
           <form action={removeSourceType}><input type="hidden" name="id" value={t.id} /><ConfirmButton message={`Delete ${t.name}?`}>Delete</ConfirmButton></form>

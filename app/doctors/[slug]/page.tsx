@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/app/components/PLink";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import ReviewCard from "@/app/components/ReviewCard";

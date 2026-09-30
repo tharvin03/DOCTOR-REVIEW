@@ -1,4 +1,5 @@
 "use client";
+import SubmitButton from "@/app/components/SubmitButton";
 import { useState } from "react";
 import { EntityPicker } from "./EntityPicker";
 
@@ -63,7 +64,7 @@ export default function ReviewForm({
         <div><label htmlFor="tg">Tags</label><input id="tg" name="tags" type="text" placeholder="ACL, MCL" defaultValue={initial.tags} /></div>
       </div>
       <label className="check"><input type="checkbox" name="hidden" defaultChecked={!!initial.hidden} /> Hidden (not shown publicly)</label>
-      <button className="btn">Save review</button>
+      <SubmitButton className="btn" pendingText="Saving…">Save review</SubmitButton>
     </form>
   );
 }

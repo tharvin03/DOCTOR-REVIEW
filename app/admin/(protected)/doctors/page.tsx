@@ -1,4 +1,5 @@
-import Link from "next/link";
+import SubmitButton from "@/app/components/SubmitButton";
+import Link from "@/app/components/PLink";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import Flash from "@/app/components/Flash";
 import { deleteDoctor, toggleDoctor } from "../../actions";
@@ -16,7 +17,7 @@ export default async function Doctors({ searchParams }: { searchParams: Promise<
     <>
       <div className="row" style={{ justifyContent: "space-between" }}><h1>Doctors</h1><Link className="btn" href="/admin/doctors/new">Add doctor</Link></div>
       <Flash {...sp} />
-      <form className="row" style={{ marginBottom: 12 }}><input type="search" name="q" defaultValue={sp.q} placeholder="Filter by name" style={{ flex: 1 }} /><button className="btn secondary">Filter</button></form>
+      <form className="row" style={{ marginBottom: 12 }}><input type="search" name="q" defaultValue={sp.q} placeholder="Filter by name" style={{ flex: 1 }} /><SubmitButton className="btn secondary" pendingText="Filtering…">Filter</SubmitButton></form>
       <div className="table-scroll"><table>
         <thead><tr><th>Name</th><th>Specialty / hospitals</th><th>Reviews</th><th></th></tr></thead>
         <tbody>{rows.map((d) => (
@@ -25,7 +26,7 @@ export default async function Doctors({ searchParams }: { searchParams: Promise<
             <td className="small">{d.specialty}<br /><span className="muted">{d.hospitals}</span></td>
             <td>{d.reviews}</td>
             <td><div className="row">
-              <form action={toggleDoctor}><input type="hidden" name="id" value={d.id} /><button className="btn small secondary">{d.hidden ? "Unhide" : "Hide"}</button></form>
+              <form action={toggleDoctor}><input type="hidden" name="id" value={d.id} /><SubmitButton className="btn small secondary">{d.hidden ? "Unhide" : "Hide"}</SubmitButton></form>
               <form action={deleteDoctor}><input type="hidden" name="id" value={d.id} /><ConfirmButton message={`Delete ${d.name} and all of their reviews?`}>Delete</ConfirmButton></form>
             </div></td>
           </tr>))}</tbody>

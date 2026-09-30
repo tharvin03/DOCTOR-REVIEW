@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/app/components/PLink";
 import type { Metadata } from "next";
 import DoctorCardView from "@/app/components/DoctorCardView";
 import { searchDoctorsByName } from "@/lib/queries";

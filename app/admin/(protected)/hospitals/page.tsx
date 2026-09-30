@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/app/components/PLink";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import Flash from "@/app/components/Flash";
 import { deleteHospital } from "../../actions";

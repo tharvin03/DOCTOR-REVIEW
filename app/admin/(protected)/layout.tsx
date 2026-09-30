@@ -1,4 +1,5 @@
-import Link from "next/link";
+import SubmitButton from "@/app/components/SubmitButton";
+import Link from "@/app/components/PLink";
 import { logout } from "../actions";
 import { requireAdmin } from "@/lib/auth";
 
@@ -13,7 +14,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           {[["/admin", "Dashboard"], ["/admin/doctors", "Doctors"], ["/admin/hospitals", "Hospitals"], ["/admin/reviews", "Reviews"],
             ["/admin/specialties", "Specialties"], ["/admin/procedures", "Procedures"], ["/admin/source-types", "Source types"], ["/admin/import", "Excel import"],
             ["/admin/submissions", "Submissions"], ["/admin/removals", "Removal requests"]].map(([h, l]) => <Link key={h} href={h}>{l}</Link>)}
-          <form action={logout} style={{ display: "inline" }}><button className="linkbtn">Log out</button></form>
+          <form action={logout} style={{ display: "inline" }}><SubmitButton className="linkbtn" pendingText="Logging out…">Log out</SubmitButton></form>
         </nav>
         {children}
       </div>

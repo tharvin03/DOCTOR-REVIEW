@@ -61,3 +61,24 @@ th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line
 .picker li { padding: 6px 0; border-bottom: 1px dashed var(--line); display: flex; justify-content: space-between; gap: 8px; align-items: center; }
 .checklist { max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: #fff; }
 .hp { position: absolute; left: -9999px; }
+
+/* ---- loading feedback ---- */
+.navbar { position: fixed; top: 0; left: 0; height: 3px; width: 0; background: var(--brand); z-index: 1000; opacity: 0; pointer-events: none; box-shadow: 0 0 6px var(--brand); }
+.navbar.loading { opacity: 1; width: 85%; transition: width 10s cubic-bezier(.1, .6, .2, 1); }
+.navbar.done { opacity: 0; width: 100%; transition: width .2s ease-out, opacity .3s ease .15s; }
+.toast { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 1000; max-width: calc(100vw - 32px); background: #1b2733; color: #fff; padding: 10px 14px; border-radius: 10px; font-size: .9rem; box-shadow: 0 4px 16px rgba(0, 0, 0, .25); }
+.toast.offline { background: var(--danger); }
+.spin { display: inline-block; width: .9em; height: .9em; margin-right: .5em; vertical-align: -.12em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; }
+.spin.inline { margin: 0 0 0 .4em; color: var(--brand); }
+@keyframes spin { to { transform: rotate(360deg); } }
+.btn[aria-busy="true"] { opacity: .75; cursor: progress; }
+body.is-loading, body.is-loading * { cursor: progress !important; }
+body:has([aria-busy="true"]), body:has([aria-busy="true"]) * { cursor: progress; }
+.skeleton { background: linear-gradient(90deg, #e6ebef 25%, #f3f6f8 50%, #e6ebef 75%); background-size: 200% 100%; border-radius: 8px; animation: shimmer 1.2s ease-in-out infinite; }
+.skeleton.card { border-color: transparent; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .spin { animation-duration: 2s; }
+  .skeleton { animation: none; }
+  .navbar.loading { transition: none; width: 60%; }
+}
