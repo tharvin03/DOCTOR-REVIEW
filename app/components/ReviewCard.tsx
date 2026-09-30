@@ -11,7 +11,7 @@ function safeHref(url: string): string | null {
   }
 }
 
-export default function ReviewCard({ review: r, doctorSlug }: { review: PublicReview; doctorSlug: string }) {
+export default function ReviewCard({ review: r }: { review: PublicReview }) {
   const [open, setOpen] = useState(false);
   const [overflows, setOverflows] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -48,9 +48,6 @@ export default function ReviewCard({ review: r, doctorSlug }: { review: PublicRe
             {label} ↗
           </a>
         )}
-        <a className="small muted" href={`/request-removal?link=${encodeURIComponent(`/doctors/${doctorSlug}#review-${r.id}`)}`}>
-          Request removal
-        </a>
       </div>
     </article>
   );

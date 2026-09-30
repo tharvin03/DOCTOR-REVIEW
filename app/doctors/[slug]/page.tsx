@@ -34,7 +34,7 @@ export default async function DoctorPage({ params }: Props) {
 
         <h2>Patient reviews ({d.reviews.length})</h2>
         {d.reviews.length === 0 && <p className="muted">No reviews yet.</p>}
-        {d.reviews.map((r) => <ReviewCard key={r.id} review={r} doctorSlug={d.slug} />)}
+        {d.reviews.map((r) => <ReviewCard key={r.id} review={r} />)}
         <ShareBox />
       </div>
     </main>

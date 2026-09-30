@@ -29,7 +29,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="wrap">
             <p style={{ margin: 0 }}>{DISCLAIMER}</p>
             <nav>
-              <Link href="/request-removal">Request removal</Link>
               <Link href="/contact">Contact</Link>
             </nav>
           </div>

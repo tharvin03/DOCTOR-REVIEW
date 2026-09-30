@@ -1,3 +1,4 @@
+import Link from "next/link";
 import SearchForm from "./components/SearchForm";
 import ShareBox from "./components/ShareBox";
 import { STATES } from "@/lib/constants";
@@ -28,6 +29,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
         <div className="wrap">
           {sp.error && <p className="notice error">{ERRORS[sp.error] ?? "Something went wrong."}</p>}
           <ShareBox sent={sp.sent === "1"} />
+          <p style={{ textAlign: "right", margin: "24px 0 0", fontSize: ".7rem" }}>
+            <Link href="/request-removal" className="muted">Request removal</Link>
+          </p>
         </div>
       </main>
     </>

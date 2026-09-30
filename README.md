@@ -21,7 +21,7 @@ Production: `npm run build && npm start`. The SQLite file lives at `DATABASE_PAT
 - `lib/db.ts` schema · `lib/repo.ts` create/update + validation (single place enforcing duplicate rules) · `lib/normalize.ts` name normalisation, slugs, similarity
 - `lib/import.ts` Excel parse / template / import (preview runs the real import in a rolled-back transaction, so preview and commit cannot disagree)
 - `lib/queries.ts` public read queries (hidden doctors/reviews are filtered here) and SEO title/description builders
-- `app/` public site (`/`, `/{kl|melaka}/{specialty}/{procedure?}`, `/doctors/{slug}`, `/search`, `/request-removal`, `/contact`) and `app/admin/**`
+- `app/` public site (`/`, `/{kl|melaka}/{specialty}/{procedure?}`, `/doctors/{slug}`, `/search`, `/request-removal` (linked only from a small link at the bottom of the home page, to discourage spam), `/contact`) and `app/admin/**`
 - `lib/hooks.ts` **placeholders** for the Discord webhook (server-side, `DISCORD_WEBHOOK_URL`), CAPTCHA and rate limiting; already called from the public form actions and currently no-ops
 
 ## Notes
