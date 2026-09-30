@@ -41,6 +41,7 @@ npm test                       # needs a throwaway Postgres: DATABASE_URL_TEST=p
 
 - Doctors are unique on normalised name (trim, lowercase, leading "Dr"/"Dr." removed, spaces collapsed); hospitals on normalised name + city. Enforced by unique indexes in the database and in code.
 - Source types (Google review, Instagram post, …) are a list managed in Admin → Source types; each can require a link or not. Links must be http(s). The public source button shows the source type name.
+- Procedures are tagged **per review** (Add review → Procedures; Excel `procedures` column). Searching by procedure returns doctors with visible reviews about it at a hospital in the chosen state; a doctor's procedures are derived from their reviews.
 - Doctor profiles have optional qualifications, years of experience and an About text; empty fields are not shown publicly.
 - Database upgrades run automatically on the first request after a deploy (see `MIGRATIONS` in `lib/db.ts`).
 - There is deliberately no export feature.

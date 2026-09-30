@@ -67,6 +67,12 @@ CREATE TABLE IF NOT EXISTS reviews (
   hidden INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')
 );
+CREATE TABLE IF NOT EXISTS review_procedures (
+  review_id INTEGER NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,
+  procedure_id INTEGER NOT NULL REFERENCES procedures(id) ON DELETE CASCADE,
+  PRIMARY KEY (review_id, procedure_id)
+);
+CREATE INDEX IF NOT EXISTS idx_review_procedures_proc ON review_procedures(procedure_id);
 CREATE TABLE IF NOT EXISTS submissions (
   id SERIAL PRIMARY KEY,
   message TEXT NOT NULL,
@@ -165,10 +171,11 @@ const seedSourceTypesSql = () =>
   `INSERT INTO source_types (name, requires_link) VALUES ${DEFAULT_SOURCE_TYPES.map(([n, r]) => `('${n}', ${r})`).join(", ")} ON CONFLICT DO NOTHING`;
 
 /**
- * Schema versions: 1 = original release, 2 = doctor profile fields + managed source types.
+ * Schema versions: 1 = original release, 2 = doctor profile fields + managed source types,
+ * 3 = procedures are tagged per review (review_procedures).
  * A brand-new database gets SCHEMA (always the latest shape); an existing one runs the steps it is missing.
  */
-const LATEST_VERSION = 2;
+const LATEST_VERSION = 3;
 const MIGRATIONS: Record<number, () => string> = {
   2: () => `
     ALTER TABLE doctors ADD COLUMN IF NOT EXISTS qualifications TEXT NOT NULL DEFAULT '';
@@ -177,6 +184,13 @@ const MIGRATIONS: Record<number, () => string> = {
     CREATE UNIQUE INDEX IF NOT EXISTS uq_source_types_name ON source_types (lower(name));
     ALTER TABLE reviews DROP CONSTRAINT IF EXISTS reviews_source_type_check;
     ${seedSourceTypesSql()};`,
+  3: () => `
+    CREATE TABLE IF NOT EXISTS review_procedures (
+      review_id INTEGER NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,
+      procedure_id INTEGER NOT NULL REFERENCES procedures(id) ON DELETE CASCADE,
+      PRIMARY KEY (review_id, procedure_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_review_procedures_proc ON review_procedures(procedure_id);`,
 };
 
 async function currentVersion(q: Queryable): Promise<number> {

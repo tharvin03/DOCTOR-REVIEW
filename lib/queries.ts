@@ -15,6 +15,8 @@ export type DoctorCard = {
   qualifications: string;
   years_experience: number | null;
   review_count: number;
+  /** Only set when searching by procedure: visible reviews about it (in the searched state). */
+  matching_count?: number;
   hospitals: Hospital[];
   procedures: Procedure[];
 };
@@ -28,6 +30,7 @@ export type PublicReview = {
   source_link: string;
   tags: string;
   hospital_name: string;
+  procedures: { id: number; name: string; slug: string }[];
 };
 
 export const listSpecialties = () => getDb().all<Specialty>("SELECT id, name, slug FROM specialties ORDER BY name");
@@ -50,9 +53,11 @@ async function attach(rows: Omit<DoctorCard, "hospitals" | "procedures">[]): Pro
       hospitals: await db.all<Hospital>(
         `SELECT h.id, h.name, h.city, h.slug, h.address FROM doctor_hospitals dh
          JOIN hospitals h ON h.id = dh.hospital_id WHERE dh.doctor_id = ? ORDER BY h.name`, r.id),
+      // A doctor's procedures are whatever their visible reviews are about.
       procedures: await db.all<Procedure>(
-        `SELECT p.id, p.specialty_id, p.name, p.slug FROM doctor_procedures dp
-         JOIN procedures p ON p.id = dp.procedure_id WHERE dp.doctor_id = ? ORDER BY p.name`, r.id),
+        `SELECT DISTINCT p.id, p.specialty_id, p.name, p.slug FROM review_procedures rp
+         JOIN reviews rv ON rv.id = rp.review_id AND rv.hidden = 0
+         JOIN procedures p ON p.id = rp.procedure_id WHERE rv.doctor_id = ? ORDER BY p.name`, r.id),
     })),
   );
 }
@@ -68,25 +73,43 @@ export async function searchDoctors(opts: {
   procedureId?: number;
   hospitalSlug?: string;
 }): Promise<DoctorCard[]> {
+  const db = getDb();
+  if (opts.procedureId) {
+    // Procedure search is about reviews: doctors who have visible reviews tagged with this procedure
+    // at a hospital in the chosen state (and hospital, if filtered).
+    const params: (string | number)[] = [opts.procedureId, opts.city];
+    let hospitalClause = "";
+    if (opts.hospitalSlug) {
+      hospitalClause = " AND h.slug = ?";
+      params.push(opts.hospitalSlug);
+    }
+    const rows = await db.all<Omit<DoctorCard, "hospitals" | "procedures">>(
+      `SELECT d.id, d.name, d.slug, s.name AS specialty, d.short_description, d.qualifications, d.years_experience,
+         (SELECT COUNT(*) FROM reviews r WHERE r.doctor_id = d.id AND r.hidden = 0) AS review_count,
+         m.n AS matching_count
+       FROM doctors d JOIN specialties s ON s.id = d.specialty_id
+       JOIN (SELECT r.doctor_id, COUNT(*) AS n
+             FROM reviews r JOIN review_procedures rp ON rp.review_id = r.id AND rp.procedure_id = ?
+             JOIN hospitals h ON h.id = r.hospital_id AND h.city = ?${hospitalClause}
+             WHERE r.hidden = 0 GROUP BY r.doctor_id) m ON m.doctor_id = d.id
+       WHERE d.hidden = 0 AND d.specialty_id = ?
+       ORDER BY m.n DESC, d.name`,
+      ...params, opts.specialtyId);
+    return attach(rows);
+  }
   const params: (string | number)[] = [opts.specialtyId, opts.city];
   let hospitalClause = "";
   if (opts.hospitalSlug) {
     hospitalClause = " AND h.slug = ?";
     params.push(opts.hospitalSlug);
   }
-  let procClause = "";
-  if (opts.procedureId) {
-    procClause = " AND EXISTS (SELECT 1 FROM doctor_procedures dp WHERE dp.doctor_id = d.id AND dp.procedure_id = ?)";
-    params.push(opts.procedureId);
-  }
-  const rows = await getDb().all<Omit<DoctorCard, "hospitals" | "procedures">>(
-      `${CARD_SELECT}
-       WHERE d.hidden = 0 AND d.specialty_id = ?
-         AND EXISTS (SELECT 1 FROM doctor_hospitals dh JOIN hospitals h ON h.id = dh.hospital_id
-                     WHERE dh.doctor_id = d.id AND h.city = ?${hospitalClause})${procClause}
-       ORDER BY review_count DESC, d.name`,
-      ...params,
-    );
+  const rows = await db.all<Omit<DoctorCard, "hospitals" | "procedures">>(
+    `${CARD_SELECT}
+     WHERE d.hidden = 0 AND d.specialty_id = ?
+       AND EXISTS (SELECT 1 FROM doctor_hospitals dh JOIN hospitals h ON h.id = dh.hospital_id
+                   WHERE dh.doctor_id = d.id AND h.city = ?${hospitalClause})
+     ORDER BY review_count DESC, d.name`,
+    ...params);
   return attach(rows);
 }
 
@@ -120,6 +143,11 @@ export async function getDoctorPage(slug: string): Promise<(DoctorCard & { revie
      FROM reviews r JOIN hospitals h ON h.id = r.hospital_id
      WHERE r.doctor_id = ? AND r.hidden = 0
      ORDER BY r.review_date IS NULL, r.review_date DESC, r.id DESC`, row.id);
+  const tagged = await db.all<{ review_id: number; id: number; name: string; slug: string }>(
+    `SELECT rp.review_id, p.id, p.name, p.slug FROM review_procedures rp
+     JOIN procedures p ON p.id = rp.procedure_id
+     JOIN reviews r ON r.id = rp.review_id WHERE r.doctor_id = ? ORDER BY p.name`, row.id);
+  for (const r of reviews) r.procedures = tagged.filter((t) => t.review_id === r.id).map(({ id, name, slug }) => ({ id, name, slug }));
   return { ...(await attach([row]))[0], reviews };
 }
 

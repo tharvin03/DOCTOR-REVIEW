@@ -15,14 +15,14 @@ export async function GET(req: Request) {
   if (kind === "doctor") {
     const nq = normalizeDoctorName(q);
     if (!nq) return NextResponse.json([]);
-    const rows = await db.all<{ id: number; name: string; name_norm: string; specialty: string; hospitals: string | null }>(
-      `SELECT d.id, d.name, d.name_norm, s.name AS specialty,
+    const rows = await db.all<{ id: number; name: string; name_norm: string; specialty_id: number; specialty: string; hospitals: string | null }>(
+      `SELECT d.id, d.name, d.name_norm, d.specialty_id, s.name AS specialty,
          (SELECT string_agg(h.name, ', ') FROM doctor_hospitals dh JOIN hospitals h ON h.id = dh.hospital_id WHERE dh.doctor_id = d.id) AS hospitals
        FROM doctors d JOIN specialties s ON s.id = d.specialty_id`,
     );
     const out = rows
       .filter((r) => r.name_norm.includes(nq) || isSimilar(nq, r.name_norm))
-      .map((r) => ({ id: r.id, name: r.name, detail: [r.specialty, r.hospitals].filter(Boolean).join(" · "), exact: r.name_norm === nq }))
+      .map((r) => ({ id: r.id, name: r.name, specialtyId: r.specialty_id, detail: [r.specialty, r.hospitals].filter(Boolean).join(" · "), exact: r.name_norm === nq }))
       .sort((a, b) => Number(b.exact) - Number(a.exact) || a.name.localeCompare(b.name))
       .slice(0, 8);
     return NextResponse.json(out);

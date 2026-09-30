@@ -5,7 +5,7 @@ import ExcelJS from "exceljs";
 import { ensureSchema, openDb } from "../lib/db";
 import { seed } from "../lib/seed-data";
 import { isSimilar, normalizeDoctorName, normalizeHospitalName, slugify } from "../lib/normalize";
-import { cleanYears, createDoctor, createHospital, createSourceType, deleteSourceType, insertReview, prepareReview, updateSourceType } from "../lib/repo";
+import { cleanYears, createDoctor, createHospital, createProcedure, createSourceType, createSpecialty, deleteSourceType, insertReview, prepareReview, updateReview, updateSourceType } from "../lib/repo";
 import { buildTemplate, parseWorkbook, runImport, type RawRow } from "../lib/import";
 import * as q from "../lib/queries";
 
@@ -116,6 +116,7 @@ test("migration: a version-1 database upgrades in place and keeps its reviews", 
     // ...then rewind it to how the first release looked
     await raw.query(`
       DROP TABLE schema_migrations;
+      DROP TABLE review_procedures;
       ALTER TABLE doctors DROP COLUMN qualifications, DROP COLUMN years_experience;
       DROP TABLE source_types;
       ALTER TABLE reviews ADD CONSTRAINT reviews_source_type_check CHECK (source_type IN
@@ -132,7 +133,8 @@ test("migration: a version-1 database upgrades in place and keeps its reviews", 
     assert.ok((await raw.query("SELECT 1 FROM source_types WHERE name = 'Instagram post'")).rowCount);
     await raw.query("INSERT INTO reviews (doctor_id, hospital_id, review_text, source_type) VALUES (1,1,'new','Instagram post')"); // CHECK gone
     await raw.query("UPDATE doctors SET qualifications = 'x', years_experience = 3");
-    assert.equal((await raw.query("SELECT max(version) AS v FROM schema_migrations")).rows[0].v, 2);
+    assert.equal((await raw.query("SELECT max(version) AS v FROM schema_migrations")).rows[0].v, 3);
+    assert.ok((await raw.query("SELECT to_regclass('review_procedures') AS t")).rows[0].t);
   } finally {
     await raw.end();
   }
@@ -155,6 +157,8 @@ test("import: preview rolls back, commit reuses and reports failures", async () 
   assert.equal(await count(db, "doctors"), before.d + 1);
   assert.equal(await count(db, "hospitals"), before.h + 1);
   assert.equal(await count(db, "reviews"), before.r + 2);
+  const tagged = await db.all<{ name: string }>("SELECT p.name FROM review_procedures rp JOIN procedures p ON p.id = rp.procedure_id JOIN reviews r ON r.id = rp.review_id WHERE r.review_text = 'text B'");
+  assert.deepEqual(tagged.map((t) => t.name), ["Knee replacement"]); // procedures from the sheet tag the review
   assert.ok((await runImport(db, rows, true)).slice(0, 2).every((x) => x.status === "error")); // re-import = duplicates
   assert.equal(await count(db, "reviews"), before.r + 2);
 });
@@ -177,7 +181,13 @@ test("public queries: hidden never shown, filters, name search", async () => {
   assert.deepEqual(kl.map((d) => d.name).sort(), ["Dr Lim Sample", "Dr Tan Example"]); // hidden doctor excluded
   assert.deepEqual((await q.searchDoctors({ city: "Melaka", specialtyId: ortho.id })).map((d) => d.name).sort(), ["Dr Aziz Demo", "Dr Lim Sample"]);
   const lig = (await q.getProcedureBySlug(ortho.id, "knee-ligament-surgery"))!;
-  assert.deepEqual((await q.searchDoctors({ city: "KL", specialtyId: ortho.id, procedureId: lig.id })).map((d) => d.name), ["Dr Tan Example"]);
+  const ligKl = await q.searchDoctors({ city: "KL", specialtyId: ortho.id, procedureId: lig.id });
+  assert.deepEqual(ligKl.map((d) => d.name), ["Dr Tan Example"]);
+  assert.equal(ligKl[0].matching_count, 1);
+  assert.deepEqual(await q.searchDoctors({ city: "Melaka", specialtyId: ortho.id, procedureId: lig.id }), []); // reviews are at a KL hospital
+  // a doctor's procedures come from the reviews, not from a hand-kept list
+  assert.deepEqual((await q.getDoctorPage("dr-tan-example"))!.procedures.map((p) => p.name), ["Knee ligament surgery", "Knee replacement"]);
+  assert.deepEqual((await q.getDoctorPage("dr-aziz-demo"))!.procedures.map((p) => p.name), ["Fracture fixation"]);
   const hs = await q.hospitalsFor("KL", ortho.id);
   assert.deepEqual(hs.map((h) => h.city), ["KL"]);
   assert.equal((await q.searchDoctors({ city: "KL", specialtyId: ortho.id, hospitalSlug: hs[0].slug })).length, 2);
@@ -193,8 +203,35 @@ test("public queries: hidden never shown, filters, name search", async () => {
   const after = (await q.getDoctorPage("dr-tan-example"))!;
   assert.equal(after.reviews.length, 0);
   assert.equal(after.review_count, 0);
+  assert.equal(after.procedures.length, 0); // hidden reviews don't advertise procedures
+  assert.deepEqual(await q.searchDoctors({ city: "KL", specialtyId: ortho.id, procedureId: lig.id }), []); // ...or make the doctor searchable
   assert.match(q.doctorMeta(tan).title, /^Dr Tan Example, Orthopedic Knee Specialist, Example Specialist Hospital KL \| Patient Reviews$/);
   assert.deepEqual((await q.allVisibleDoctorSlugs()).map((d) => d.slug).sort(), ["dr-aziz-demo", "dr-lim-sample", "dr-tan-example"]);
+});
+
+test("review procedures: replace on edit, must match the doctor's specialty", async () => {
+  const db = await freshDb();
+  const ortho = (await db.get<{ id: number }>("SELECT id FROM specialties"))!.id;
+  const cardio = await createSpecialty(db, "Cardiology");
+  const stent = await createProcedure(db, cardio, "Stent");
+  const tan = (await db.get<{ id: number }>("SELECT id FROM doctors WHERE slug = 'dr-tan-example'"))!.id;
+  const hid = (await db.get<{ id: number }>("SELECT id FROM hospitals WHERE city = 'KL'"))!.id;
+  const knee = (await db.get<{ id: number }>("SELECT id FROM procedures WHERE slug = 'knee-replacement'"))!.id;
+  const hip = (await db.get<{ id: number }>("SELECT id FROM procedures WHERE slug = 'hip-replacement'"))!.id;
+  const base = { doctorId: tan, hospitalId: hid, text: "multi-procedure", sourceType: "Article", sourceLink: "https://a.com/mp" };
+  await assert.rejects(insertReview(db, { ...base, procedureIds: [stent] }), /specialty/);
+  const id = await insertReview(db, { ...base, procedureIds: [knee, hip, knee] });
+  const names = async () => (await db.all<{ procedure_id: number }>("SELECT procedure_id FROM review_procedures WHERE review_id = ? ORDER BY 1", id)).map((r) => r.procedure_id);
+  assert.deepEqual(await names(), [knee, hip].sort((a, b) => a - b));
+  await updateReview(db, id, { ...base, procedureIds: [hip] });
+  assert.deepEqual(await names(), [hip]);
+  await updateReview(db, id, { ...base, procedureIds: [hip, knee] });
+  assert.equal((await names()).length, 2);
+  await updateReview(db, id, { ...base, procedureIds: [] });
+  assert.deepEqual(await names(), []);
+  await updateReview(db, id, { ...base, procedureIds: [knee] });
+  await db.run("DELETE FROM reviews WHERE id = ?", id);
+  assert.equal((await db.get<{ c: number }>("SELECT COUNT(*) AS c FROM review_procedures WHERE review_id = ?", id))!.c, 0); // cascade leaves no orphans
 });
 
 test("a failed transaction rolls back everything", async () => {

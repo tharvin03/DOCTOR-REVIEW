@@ -18,6 +18,7 @@ export default async function NewReview({ searchParams }: { searchParams: Promis
       <Flash err={sp.err} />
       {sub && <p className="notice">Prefilled from submission #{sub.id}. Pick the doctor and hospital, then save; the submission will be marked approved.</p>}
       <ReviewForm action={saveReview} specialties={specialties} sourceTypes={await listSourceTypes(db)}
+        procedures={await db.all<{ id: number; name: string; specialty_id: number }>("SELECT id, name, specialty_id FROM procedures ORDER BY name")}
         initial={sub ? { review_text: sub.message, source_link: sub.link, source_type: sub.link ? "Other" : "Patient submission", submission_id: sub.id } : {}} />
     </>
   );

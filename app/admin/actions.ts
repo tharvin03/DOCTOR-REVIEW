@@ -6,7 +6,7 @@ import { getDb } from "@/lib/db";
 import type { Db } from "@/lib/db";
 import {
   createDoctor, createHospital, createProcedure, createSpecialty, findDoctorByName, findHospital,
-  cleanYears, createSourceType, deleteSourceType, insertReview, linkDoctorHospital, linkDoctorProcedure,
+  cleanYears, createSourceType, deleteSourceType, insertReview, linkDoctorHospital,
   updateDoctorName, updateHospital, updateReview, updateSourceType,
 } from "@/lib/repo";
 import { MAX_ROWS, runImport, parseWorkbook, type RawRow, type RowResult } from "@/lib/import";
@@ -73,8 +73,6 @@ export async function saveDoctor(fd: FormData) {
       }
       await db.run("DELETE FROM doctor_hospitals WHERE doctor_id=?", did);
       for (const h of nums(fd, "hospital_ids")) await linkDoctorHospital(db, did, h);
-      await db.run("DELETE FROM doctor_procedures WHERE doctor_id=?", did);
-      for (const p of nums(fd, "procedure_ids")) await linkDoctorProcedure(db, did, p);
       return did;
     });
     return `/admin/doctors/${newId}`;
@@ -139,7 +137,7 @@ export async function saveReview(fd: FormData) {
       const input = {
         doctorId, hospitalId, text: str(fd, "review_text"), reviewerName: str(fd, "reviewer_name"),
         date: str(fd, "review_date"), sourceType: str(fd, "source_type"), sourceLink: str(fd, "source_link"),
-        tags: str(fd, "tags"), hidden: !!fd.get("hidden"),
+        tags: str(fd, "tags"), procedureIds: nums(fd, "procedure_ids"), hidden: !!fd.get("hidden"),
       };
       if (id) { await updateReview(db, id, input); return "/admin/reviews"; }
       await insertReview(db, input);

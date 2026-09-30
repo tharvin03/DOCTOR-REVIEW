@@ -3,7 +3,7 @@ import type { Db } from "./db";
 import { CITIES } from "./constants";
 import {
   createDoctor, createHospital, findDoctorByName, findHospital, insertReview, linkDoctorHospital,
-  linkDoctorProcedure, listSourceTypes, prepareReview, reviewExists,
+  listSourceTypes, prepareReview, reviewExists,
 } from "./repo";
 import { slugify } from "./normalize";
 
@@ -110,10 +110,9 @@ async function processRow(db: Db, r: RawRow): Promise<Pick<RowResult, "doctor" |
   const hospitalId = hospital?.id ?? (await createHospital(db, { name: s("hospital_name"), city, address: s("hospital_address") }));
   const doctorId = doctor?.id ?? (await createDoctor(db, { name: s("doctor_name"), specialtyId: specialtyId!, description: s("doctor_description") }));
   await linkDoctorHospital(db, doctorId, hospitalId);
-  for (const pid of procIds) await linkDoctorProcedure(db, doctorId, pid);
   await insertReview(db, {
     doctorId, hospitalId, text: s("review_text"), reviewerName: s("reviewer_name"), date,
-    sourceType: s("source_type"), sourceLink: s("source_link"), tags: s("tags"),
+    sourceType: s("source_type"), sourceLink: s("source_link"), tags: s("tags"), procedureIds: procIds,
   });
   return { doctor: doctorState, hospital: hospital ? "matched" : "new" };
 }
@@ -172,7 +171,7 @@ export async function buildTemplate(db: Db): Promise<Buffer> {
     ["Required", "doctor_name, hospital_name, city, review_text, source_type"],
     ["city", "KL or Melaka"],
     ["specialty", "Required only when the doctor is not already in the database; must match an existing specialty"],
-    ["procedures", "Optional. Separate with ; and use existing procedure names for that specialty"],
+    ["procedures", "Optional. The procedures THIS REVIEW is about. Separate with ; and use existing procedure names for the doctor's specialty"],
     ["review_date", "YYYY-MM-DD (DD/MM/YYYY also accepted). Optional"],
     ["source_type", `Must match a name in Admin > Source types. Currently: ${sourceTypes.join(" / ")}`],
     ["source_link", "Required (http/https) for source types marked \"link required\" (all except Patient submission by default)"],

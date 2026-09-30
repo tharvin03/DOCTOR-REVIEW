@@ -7,8 +7,9 @@ import { getDb } from "@/lib/db";
 export default async function Reviews({ searchParams }: { searchParams: Promise<{ msg?: string; err?: string; q?: string }> }) {
   const sp = await searchParams;
   const like = `%${(sp.q ?? "").trim().toLowerCase()}%`;
-  const rows = await getDb().all<{ id: number; review_text: string; review_date: string | null; source_type: string; hidden: number; doctor: string; hospital: string }>(
-    `SELECT r.id, r.review_text, r.review_date, r.source_type, r.hidden, d.name AS doctor, h.name AS hospital
+  const rows = await getDb().all<{ id: number; review_text: string; review_date: string | null; source_type: string; hidden: number; doctor: string; hospital: string; procedures: string | null }>(
+    `SELECT r.id, r.review_text, r.review_date, r.source_type, r.hidden, d.name AS doctor, h.name AS hospital,
+       (SELECT string_agg(p.name, ', ' ORDER BY p.name) FROM review_procedures rp JOIN procedures p ON p.id = rp.procedure_id WHERE rp.review_id = r.id) AS procedures
      FROM reviews r JOIN doctors d ON d.id=r.doctor_id JOIN hospitals h ON h.id=r.hospital_id
      WHERE d.name_norm LIKE ? OR lower(r.review_text) LIKE ? ORDER BY r.id DESC LIMIT 200`, like, like);
   return (
@@ -22,7 +23,7 @@ export default async function Reviews({ searchParams }: { searchParams: Promise<
           <tr key={r.id}>
             <td>{r.doctor}<br /><span className="muted small">{r.hospital}</span></td>
             <td className="small"><Link href={`/admin/reviews/${r.id}`}>{r.review_text.slice(0, 120)}{r.review_text.length > 120 ? "…" : ""}</Link><br />
-              <span className="muted">{r.source_type} · {r.review_date ?? "no date"}</span> {r.hidden ? <span className="pill bad">hidden</span> : null}</td>
+              <span className="muted">{r.source_type} · {r.review_date ?? "no date"}</span> {r.procedures ? <span className="pill">{r.procedures}</span> : <span className="pill warn">no procedure</span>} {r.hidden ? <span className="pill bad">hidden</span> : null}</td>
             <td><div className="row">
               <form action={toggleReview}><input type="hidden" name="id" value={r.id} /><button className="btn small secondary">{r.hidden ? "Unhide" : "Hide"}</button></form>
               <form action={deleteReview}><input type="hidden" name="id" value={r.id} /><ConfirmButton message="Delete this review permanently?">Delete</ConfirmButton></form>

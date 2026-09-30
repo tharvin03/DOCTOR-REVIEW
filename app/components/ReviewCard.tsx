@@ -29,6 +29,7 @@ export default function ReviewCard({ review: r }: { review: PublicReview }) {
   return (
     <article className="card review" id={`review-${r.id}`}>
       {r.tags && <div className="tags">{r.tags}</div>}
+      {r.procedures.length > 0 && <div style={{ margin: "0 0 6px" }}>{r.procedures.map((p) => <span className="pill" key={p.id}>{p.name}</span>)}</div>}
       <div ref={bodyRef} className={`body${open ? "" : " clamped"}`}>{r.review_text}</div>
       {long && (
         <button type="button" className="linkbtn small" aria-expanded={open} onClick={() => setOpen(!open)}>

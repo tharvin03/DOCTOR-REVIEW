@@ -94,10 +94,6 @@ export async function linkDoctorHospital(db: Db, doctorId: number, hospitalId: n
   await db.run("INSERT INTO doctor_hospitals (doctor_id, hospital_id) VALUES (?,?) ON CONFLICT DO NOTHING", doctorId, hospitalId);
 }
 
-export async function linkDoctorProcedure(db: Db, doctorId: number, procedureId: number) {
-  await db.run("INSERT INTO doctor_procedures (doctor_id, procedure_id) VALUES (?,?) ON CONFLICT DO NOTHING", doctorId, procedureId);
-}
-
 export async function createSpecialty(db: Db, name: string): Promise<number> {
   const n = name.trim();
   if (!n) throw new Error("Name is required");
@@ -124,6 +120,7 @@ export type ReviewInput = {
   sourceType: string;
   sourceLink?: string;
   tags?: string;
+  procedureIds?: number[];
   hidden?: boolean;
 };
 
@@ -178,14 +175,29 @@ export async function prepareReview(db: Db, r: Omit<ReviewInput, "doctorId" | "h
   return st.name;
 }
 
+/** Replaces the procedures a review is about. Each must belong to the doctor's specialty. */
+export async function setReviewProcedures(db: Db, reviewId: number, doctorId: number, procedureIds: number[]) {
+  const ids = [...new Set(procedureIds.filter((n) => Number.isInteger(n) && n > 0))];
+  if (ids.length > 0) {
+    const okCount = (await db.get<{ c: number }>(
+      `SELECT COUNT(*) AS c FROM procedures p JOIN doctors d ON d.specialty_id = p.specialty_id
+       WHERE d.id = ? AND p.id = ANY(?::int[])`, doctorId, ids))!.c;
+    if (okCount !== ids.length) throw new Error("A selected procedure does not belong to this doctor's specialty");
+  }
+  await db.run("DELETE FROM review_procedures WHERE review_id = ?", reviewId);
+  for (const pid of ids) await db.run("INSERT INTO review_procedures (review_id, procedure_id) VALUES (?,?)", reviewId, pid);
+}
+
 export async function insertReview(db: Db, r: ReviewInput): Promise<number> {
   const sourceType = await prepareReview(db, r);
-  return db.insert(
+  const id = await db.insert(
     `INSERT INTO reviews (doctor_id, hospital_id, review_text, reviewer_name, review_date, source_type,
        source_link, tags, hidden) VALUES (?,?,?,?,?,?,?,?,?)`,
     r.doctorId, r.hospitalId, r.text.trim(), r.reviewerName?.trim() ?? "", r.date || null, sourceType,
     r.sourceLink?.trim() ?? "", r.tags?.trim() ?? "", r.hidden ? 1 : 0,
   );
+  if (r.procedureIds?.length) await setReviewProcedures(db, id, r.doctorId, r.procedureIds);
+  return id;
 }
 
 export async function updateReview(db: Db, id: number, r: ReviewInput) {
@@ -196,6 +208,7 @@ export async function updateReview(db: Db, id: number, r: ReviewInput) {
     r.doctorId, r.hospitalId, r.text.trim(), r.reviewerName?.trim() ?? "", r.date || null, sourceType,
     r.sourceLink?.trim() ?? "", r.tags?.trim() ?? "", r.hidden ? 1 : 0, id,
   );
+  await setReviewProcedures(db, id, r.doctorId, r.procedureIds ?? []);
 }
 
 export function normalizeReviewText(t: string): string {

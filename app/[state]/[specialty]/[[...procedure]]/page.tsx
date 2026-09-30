@@ -62,8 +62,8 @@ export default async function Results({
             {r.procedure && <> Try <Link href={`/${r.state.slug}/${r.specialty.slug}`}>all {r.specialty.name} procedures</Link>.</>}</p>
         ) : (
           <>
-            <p className="muted small">{doctors.length} doctor{doctors.length === 1 ? "" : "s"}</p>
-            {doctors.map((d) => <DoctorCardView key={d.id} d={d} />)}
+            <p className="muted small">{doctors.length} doctor{doctors.length === 1 ? "" : "s"}{r.procedure ? ` with reviews about ${r.procedure.name}` : ""}</p>
+            {doctors.map((d) => <DoctorCardView key={d.id} d={d} procedure={r.procedure} />)}
           </>
         )}
         {!r.procedure && otherProcs.length > 0 && (

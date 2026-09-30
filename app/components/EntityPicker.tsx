@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 
-type Match = { id: number; name: string; detail: string; exact: boolean; city?: string };
+type Match = { id: number; name: string; detail: string; exact: boolean; city?: string; specialtyId?: number };
 type Kind = "doctor" | "hospital";
 
 function useMatches(kind: Kind, q: string, excludeId?: number) {
@@ -25,13 +25,19 @@ function useMatches(kind: Kind, q: string, excludeId?: number) {
  * Emits hidden inputs: {kind}_id  OR  {kind}_new_name (+ city/address/specialty for new).
  */
 export function EntityPicker({
-  kind, label, initial, specialties,
+  kind, label, initial, specialties, onSpecialty,
 }: {
   kind: Kind; label: string;
   initial?: { id: number; name: string };
   specialties?: { id: number; name: string }[];
+  /** Doctor pickers report the chosen doctor's specialty (null when none is chosen yet). */
+  onSpecialty?: (specialtyId: number | null) => void;
 }) {
   const [selected, setSelected] = useState(initial ?? null);
+  const choose = (m: { id: number; name: string; specialtyId?: number } | null) => {
+    setSelected(m ? { id: m.id, name: m.name } : null);
+    onSpecialty?.(m?.specialtyId ?? null);
+  };
   const [creating, setCreating] = useState(false);
   const [q, setQ] = useState("");
   const [city, setCity] = useState("KL");
@@ -45,7 +51,7 @@ export function EntityPicker({
         <label>{label}</label>
         <input type="hidden" name={`${kind}_id`} value={selected.id} />
         <div className="row"><strong>{selected.name}</strong>
-          <button type="button" className="linkbtn small" onClick={() => { setSelected(null); setQ(""); }}>Change</button></div>
+          <button type="button" className="linkbtn small" onClick={() => { choose(null); setQ(""); }}>Change</button></div>
       </div>
     );
 
@@ -53,13 +59,13 @@ export function EntityPicker({
     <div className="picker">
       <label htmlFor={`${kind}-q`}>{label}: search existing or create new</label>
       <input id={`${kind}-q`} type="search" value={q} autoComplete="off" placeholder={`Type a ${kind} name…`}
-        onChange={(e) => { setQ(e.target.value); setCreating(false); }} />
+        onChange={(e) => { setQ(e.target.value); setCreating(false); onSpecialty?.(null); }} />
       {!creating && q.trim() && (
         <ul>
           {matches.map((m) => (
             <li key={m.id}>
               <span>{m.name}<br /><span className="muted small">{m.detail}</span></span>
-              <button type="button" className="btn small secondary" onClick={() => setSelected({ id: m.id, name: m.name })}>Select</button>
+              <button type="button" className="btn small secondary" onClick={() => choose(m)}>Select</button>
             </li>
           ))}
           <li><span className="muted">{matches.length ? "Not in the list?" : "No matches."}</span>
@@ -72,7 +78,7 @@ export function EntityPicker({
             <input type="text" name={`${kind}_new_name`} value={q} onChange={(e) => setQ(e.target.value)} required /></div>
           {kind === "doctor" && (
             <div><label>Specialty</label>
-              <select name="doctor_new_specialty_id" required defaultValue="">
+              <select name="doctor_new_specialty_id" required defaultValue="" onChange={(e) => onSpecialty?.(Number(e.target.value) || null)}>
                 <option value="" disabled>Select…</option>
                 {specialties?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select></div>
@@ -87,18 +93,18 @@ export function EntityPicker({
           )}
           {conflict && (
             <div className="notice error">“{conflict.name}” already exists.{" "}
-              <button type="button" className="linkbtn" onClick={() => setSelected({ id: conflict.id, name: conflict.name })}>Use the existing one</button></div>
+              <button type="button" className="linkbtn" onClick={() => choose(conflict)}>Use the existing one</button></div>
           )}
           {similar.length > 0 && (
             <div className="notice">Similar existing names — check you are not creating a duplicate:
               <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
                 {similar.map((m) => (
                   <li key={m.id} style={{ display: "list-item", border: 0 }}>{m.name} <span className="muted small">({m.detail})</span>{" "}
-                    <button type="button" className="linkbtn small" onClick={() => setSelected({ id: m.id, name: m.name })}>use this</button></li>
+                    <button type="button" className="linkbtn small" onClick={() => choose(m)}>use this</button></li>
                 ))}
               </ul></div>
           )}
-          <button type="button" className="linkbtn small" onClick={() => setCreating(false)}>Cancel</button>
+          <button type="button" className="linkbtn small" onClick={() => { setCreating(false); onSpecialty?.(null); }}>Cancel</button>
         </div>
       )}
     </div>
