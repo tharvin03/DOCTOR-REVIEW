@@ -165,9 +165,14 @@ async function ensureSchema(pool: Pool) {
   }
 }
 
+/** Neon's copy button adds channel_binding=require, which node-postgres may not satisfy; drop it. */
+export function cleanConnectionString(url: string): string {
+  return url.replace(/([?&])channel_binding=[^&]*&?/, "$1").replace(/[?&]$/, "");
+}
+
 export function openDb(connectionString: string, opts: { schema?: string; max?: number } = {}): Db & { close(): Promise<void> } {
   const pool = new Pool({
-    connectionString,
+    connectionString: cleanConnectionString(connectionString),
     max: opts.max ?? 5,
     idleTimeoutMillis: 10_000,
     ...(opts.schema ? { options: `-c search_path=${opts.schema}` } : {}),

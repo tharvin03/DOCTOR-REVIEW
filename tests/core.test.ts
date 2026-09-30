@@ -140,3 +140,11 @@ test("a failed transaction rolls back everything", async () => {
   const id = await insertReview(db, { doctorId: 1, hospitalId: 1, text: "t", sourceType: "Patient submission" });
   assert.equal((await db.get<{ hidden: number }>("SELECT hidden FROM reviews WHERE id=?", id))!.hidden, 0);
 });
+
+test("connection string: Neon's channel_binding parameter is dropped", async () => {
+  const { cleanConnectionString: c } = await import("../lib/db");
+  assert.equal(c("postgresql://u:p@h/db?sslmode=require&channel_binding=require"), "postgresql://u:p@h/db?sslmode=require");
+  assert.equal(c("postgresql://u:p@h/db?channel_binding=require&sslmode=require"), "postgresql://u:p@h/db?sslmode=require");
+  assert.equal(c("postgresql://u:p@h/db?channel_binding=require"), "postgresql://u:p@h/db");
+  assert.equal(c("postgresql://u:p@h/db?sslmode=require"), "postgresql://u:p@h/db?sslmode=require");
+});
